@@ -5,7 +5,7 @@ import { palette } from "@/constants/palette";
 
 import { CURVE_DEPTH, CURVE_WIDTH } from "./constants";
 
-const corkTexture = require("@/assets/images/cork-texture.png");
+const corkTexture = require("@/assets/images/cork-texture-blurred.png");
 
 interface TabBarBackgroundProps {
   width: number;

@@ -17,8 +17,8 @@ interface TabBarBackgroundProps {
 // Creates the SVG path for the tab bar's curved shape.
 const getTabBarPath = (width: number, height: number) => {
   const center = width / 2;
-  const topY = 20;
-  const dipHeight = 45;
+  const topY = 0;
+  const dipHeight = 25;
   const curveStart = center - 75;
   const curveEnd = center + 75;
   const controlPointXOffset = 31;
@@ -86,7 +86,7 @@ export function TabBarBackground({
         <Path
           d={d}
           fill="url(#corkTexture)"
-          fillOpacity={colorScheme === "dark" ? 0.15 : 0.25}
+          fillOpacity={colorScheme === "dark" ? 0.16 : 0.32}
         />
 
         {/* Layer 3: Subtle stroke */}

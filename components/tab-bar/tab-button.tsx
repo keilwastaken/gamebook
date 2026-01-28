@@ -3,7 +3,12 @@ import { Animated, Pressable } from "react-native";
 
 import { palette } from "@/constants/palette";
 
-import { ICON_SIZE_DEFAULT, ICON_SIZE_FOCUSED, TabConfig } from "./constants";
+import {
+  ICON_SIZE_DEFAULT,
+  ICON_SIZE_FOCUSED,
+  TAB_BAR_HEIGHT,
+  TabConfig,
+} from "./constants";
 
 interface TabButtonProps {
   tab: TabConfig;
@@ -47,7 +52,8 @@ export function TabButton({
       onPress={onPress}
       onPressIn={handlePressIn}
       onPressOut={handlePressOut}
-      className="flex-1 items-center justify-center py-2"
+      className="flex-1 items-center justify-center"
+      style={{ height: TAB_BAR_HEIGHT }}
     >
       <Animated.View
         className="items-center justify-center"

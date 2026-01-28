@@ -32,7 +32,7 @@ export function TabBar({ state, navigation }: BottomTabBarProps) {
         colorScheme={colorScheme}
       />
 
-      <View className="flex-row items-start justify-between px-6 pt-7">
+      <View className="flex-row items-center justify-between px-6">
         {TABS.map((tab, index) => {
           if (tab.isCenter) {
             return (

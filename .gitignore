@@ -8,6 +8,7 @@ node_modules/
 dist/
 web-build/
 expo-env.d.ts
+.expo-shared/
 
 # Native
 .kotlin/
@@ -17,6 +18,8 @@ expo-env.d.ts
 *.p12
 *.key
 *.mobileprovision
+*.pem
+*.crt
 
 # Metro
 .metro-health-check*
@@ -25,13 +28,16 @@ expo-env.d.ts
 npm-debug.*
 yarn-debug.*
 yarn-error.*
+*.log
 
 # macOS
 .DS_Store
-*.pem
+._*
 
 # local env files
 .env*.local
+.env
+.env.test
 
 # typescript
 *.tsbuildinfo
@@ -40,4 +46,48 @@ app-example
 
 # generated native folders
 /ios
-/android
+/android/
+
+# IDE files
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Testing
+coverage/
+*.lcov
+.nyc_output
+
+# Cache
+.cache
+.parcel-cache
+.npm
+.eslintcache
+.yarn-integrity
+
+# Keys and certificates
+google-services.json
+GoogleService-Info.plist
+appcenter-config.json
+
+# OS generated files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Logs
+logs
+
+# Temporary files
+tmp/
+temp/
+*.tgz
+*.pid
+*.seed
+*.pid.lock

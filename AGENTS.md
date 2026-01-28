@@ -46,12 +46,14 @@ import { useThemeColor } from '@/hooks/use-theme-color';
 
 ### Theme System & Color Usage
 🚨 **CRITICAL RULE**: ALL colors MUST come from tailwind.config.js - NO hardcoded colors allowed
-- Use semantic color names: `bg-background`, `text-text`, `border-border`, `accent-accent`
-- Dark mode variants: `bg-background-dark`, `text-text-dark`, `border-border-dark`
-- UI colors: `success`, `warning`, `error` (all have dark variants)
-- Components accept `lightColor`/`darkColor` props for custom theming
-- Use `useThemeColor` hook for consistent color handling
-- Never use literal hex colors or default Tailwind colors directly
+- **Source of Truth**: `tailwind.config.js` is the absolute source of truth. Use the project's specific palette:
+  - **Cream**: `cream`, `cream-dark` (Backgrounds)
+  - **Sage**: `sage-{50-700}` (Primary/Text)
+  - **Warm**: `warm-{50-600}` (Accents/Cards)
+  - **UI**: `heart`, `icon`
+- **Dark Mode**: Use NativeWind dark modifiers (e.g., `bg-cream dark:bg-cream-dark`) or `ThemedView`/`ThemedText` props.
+- **Cache Invalidation**: If config changes (colors/fonts) aren't reflected, restart the server with `npx expo start -c`.
+- **Prohibited**: Never use literal hex colors (e.g., `bg-[#F5F0E8]`) or default Tailwind colors unless explicitly configured.
 
 ### TypeScript Rules
 - Strict mode enabled

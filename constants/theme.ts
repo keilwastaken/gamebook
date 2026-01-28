@@ -1,18 +1,20 @@
+import { palette } from "./palette";
+
 export const Colors = {
   light: {
-    text: '#11181C',
-    background: '#fff',
-    tint: '#007AFF',
-    icon: '#687076',
-    tabIconDefault: '#687076',
-    tabIconSelected: '#007AFF',
+    text: palette.sage[700],
+    background: palette.cream.dark,
+    tint: palette.sage[500],
+    icon: palette.sage[400],
+    tabIconDefault: palette.sage[400],
+    tabIconSelected: palette.sage[500],
   },
   dark: {
-    text: '#ECEDEE',
-    background: '#151718',
-    tint: '#fff',
-    icon: '#9BA1A6',
-    tabIconDefault: '#9BA1A6',
-    tabIconSelected: '#fff',
+    text: palette.sage[100],
+    background: palette.cream.dark,
+    tint: palette.sage[300],
+    icon: palette.sage[300],
+    tabIconDefault: palette.sage[300],
+    tabIconSelected: palette.sage[50],
   },
 };

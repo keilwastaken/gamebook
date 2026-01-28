@@ -44,11 +44,14 @@ import { useThemeColor } from '@/hooks/use-theme-color';
 - **Functions/Variables**: camelCase
 - **Types/Interfaces**: PascalCase with descriptive names
 
-### Theme System
-- All colors defined in `constants/theme.ts`
+### Theme System & Color Usage
+🚨 **CRITICAL RULE**: ALL colors MUST come from tailwind.config.js - NO hardcoded colors allowed
+- Use semantic color names: `bg-background`, `text-text`, `border-border`, `accent-accent`
+- Dark mode variants: `bg-background-dark`, `text-text-dark`, `border-border-dark`
+- UI colors: `success`, `warning`, `error` (all have dark variants)
 - Components accept `lightColor`/`darkColor` props for custom theming
 - Use `useThemeColor` hook for consistent color handling
-- Semantic color naming: `text`, `background`, `tint`, `icon`, `tabIconDefault`, `tabIconSelected`
+- Never use literal hex colors or default Tailwind colors directly
 
 ### TypeScript Rules
 - Strict mode enabled

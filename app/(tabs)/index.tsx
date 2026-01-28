@@ -1,11 +1,12 @@
-import { Text, View } from "react-native";
+import { ThemedText } from "@/components/themed-text";
+import { ThemedView } from "@/components/themed-view";
 
 export default function HomeScreen() {
   return (
-    <View className="flex-1 items-center justify-center bg-white dark:bg-gray-900">
-      <Text className="text-2xl font-bold text-gray-900 dark:text-white">
+    <ThemedView className="flex-1 items-center justify-center">
+      <ThemedText className="text-2xl font-bold" type="title">
         Hello World
-      </Text>
-    </View>
+      </ThemedText>
+    </ThemedView>
   );
 }

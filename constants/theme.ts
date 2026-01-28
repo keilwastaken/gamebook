@@ -8,6 +8,7 @@ export const Colors = {
     icon: palette.sage[400],
     tabIconDefault: palette.sage[400],
     tabIconSelected: palette.sage[500],
+    tabBarBackground: palette.tabBar,
   },
   dark: {
     text: palette.sage[100],
@@ -16,5 +17,6 @@ export const Colors = {
     icon: palette.sage[300],
     tabIconDefault: palette.sage[300],
     tabIconSelected: palette.sage[50],
+    tabBarBackground: palette.cream.dark,
   },
 };

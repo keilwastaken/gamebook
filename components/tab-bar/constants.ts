@@ -25,6 +25,6 @@ export const TABS: TabConfig[] = [
 ];
 
 // Layout dimensions
-export const CENTER_BUTTON_SIZE = 56;
-export const CURVE_WIDTH = 90;
-export const CURVE_DEPTH = 30;
+export const CENTER_BUTTON_SIZE = 88;
+export const CURVE_WIDTH = 130;
+export const CURVE_DEPTH = 42;

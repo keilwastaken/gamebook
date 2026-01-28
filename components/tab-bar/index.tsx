@@ -16,7 +16,7 @@ export function TabBar({ state, navigation }: BottomTabBarProps) {
   const colorScheme = useColorScheme() ?? "light";
   const theme = Colors[colorScheme];
 
-  const TAB_HEIGHT = 60 + insets.bottom;
+  const TAB_HEIGHT = 75 + insets.bottom;
 
   return (
     <View className="absolute bottom-0 w-full" style={{ height: TAB_HEIGHT }}>
@@ -27,7 +27,7 @@ export function TabBar({ state, navigation }: BottomTabBarProps) {
         colorScheme={colorScheme}
       />
 
-      <View className="flex-row items-start justify-between px-2 pt-2">
+      <View className="flex-row items-start justify-between px-6 pt-7">
         {TABS.map((tab, index) => {
           if (tab.isCenter) {
             return (
@@ -59,15 +59,6 @@ export function TabBar({ state, navigation }: BottomTabBarProps) {
             }
           };
 
-          // Add extra spacing to the neighbors of the center button
-          const isLeftNeighbor = index === 1;
-          const isRightNeighbor = index === 3;
-          const marginStyle = isLeftNeighbor
-            ? { marginRight: 10 }
-            : isRightNeighbor
-              ? { marginLeft: 10 }
-              : undefined;
-
           return (
             <TabButton
               key={tab.name}
@@ -76,7 +67,6 @@ export function TabBar({ state, navigation }: BottomTabBarProps) {
               onPress={onPress}
               activeColor={theme.tabIconSelected}
               inactiveColor={theme.tabIconDefault}
-              style={marginStyle}
             />
           );
         })}

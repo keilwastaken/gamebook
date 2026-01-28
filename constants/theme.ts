@@ -7,7 +7,7 @@ export const Colors = {
     tint: palette.sage[500],
     icon: palette.sage[400],
     tabIconDefault: palette.sage[400],
-    tabIconSelected: palette.sage[500],
+    tabIconSelected: palette.warm[500], // Warm brown ties into clay button
     tabBarBackground: palette.tabBar,
   },
   dark: {
@@ -15,8 +15,8 @@ export const Colors = {
     background: palette.cream.dark,
     tint: palette.sage[300],
     icon: palette.sage[300],
-    tabIconDefault: palette.sage[300],
-    tabIconSelected: palette.sage[50],
+    tabIconDefault: palette.sage[400],
+    tabIconSelected: palette.warm[400], // Warm brown ties into clay button
     tabBarBackground: palette.cream.dark,
   },
 };

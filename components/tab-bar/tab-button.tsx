@@ -1,5 +1,5 @@
 import { useRef } from "react";
-import { Animated, Pressable, Text, ViewStyle } from "react-native";
+import { Animated, Pressable, ViewStyle } from "react-native";
 
 import { palette } from "@/constants/palette";
 
@@ -47,41 +47,28 @@ export function TabButton({
       onPress={onPress}
       onPressIn={handlePressIn}
       onPressOut={handlePressOut}
-      className="items-center justify-center py-2 flex-1"
+      className="flex-1 items-center justify-center py-2"
       style={style}
     >
       <Animated.View
-        className={`rounded-full items-center justify-center ${
-          isFocused ? "bg-sage-200/80 dark:bg-sage-600/80" : "bg-transparent"
-        }`}
-        style={{
-          paddingHorizontal: 16,
-          paddingVertical: 6,
-          transform: [{ scale: scaleAnim }],
-          ...(isFocused && {
-            shadowColor: palette.sage[300],
-            shadowOffset: { width: 0, height: 0 },
-            shadowOpacity: 0.7,
-            shadowRadius: 12,
-          }),
-        }}
+        className="items-center justify-center"
+        style={[
+          { transform: [{ scale: scaleAnim }] },
+          isFocused && {
+            shadowColor: palette.sage[400],
+            shadowOffset: { width: 0, height: 6 },
+            shadowOpacity: 0.4,
+            shadowRadius: 6,
+            elevation: 10,
+          },
+        ]}
       >
         <tab.icon
-          size={24}
+          size={isFocused ? 28 : 26}
           color={isFocused ? activeColor : inactiveColor}
-          weight={isFocused ? "fill" : "regular"}
+          weight="fill"
         />
       </Animated.View>
-      <Text
-        className={`text-xs mt-1 font-semibold ${
-          isFocused
-            ? "text-sage-600 dark:text-sage-50"
-            : "text-sage-400 dark:text-sage-300"
-        }`}
-        style={{ fontFamily: "Nunito" }}
-      >
-        {tab.label}
-      </Text>
     </Pressable>
   );
 }

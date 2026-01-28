@@ -1,4 +1,4 @@
-# Gamebook - Agent Guidelines
+# Gamebook - Claude Guidelines
 
 ## Product Vision
 

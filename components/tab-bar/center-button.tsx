@@ -4,7 +4,6 @@ import { Animated, Pressable, View, Image, StyleSheet } from "react-native";
 interface CenterButtonProps {
   curveWidth: number;
   buttonSize: number;
-  tintColor?: string;
   onPress: () => void;
 }
 

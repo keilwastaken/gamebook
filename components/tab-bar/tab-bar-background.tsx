@@ -14,24 +14,21 @@ interface TabBarBackgroundProps {
   colorScheme: "light" | "dark";
 }
 
-// The "Enhanced Slope" Generator
-const getTabPath = (width: number, height: number) => {
+// Creates the SVG path for the tab bar's curved shape.
+const getTabBarPath = (width: number, height: number) => {
   const center = width / 2;
   const topY = 20;
-  const dipHeight = 45; // Deeper dip
-  const curveStart = center - 75; // Wider curve
-  const curveEnd = center + 75; // Wider curve
-  const cornerRadius = 16;
-  const controlPointXOffset = 31; // Adjusted control point for a smooth slope
+  const dipHeight = 45;
+  const curveStart = center - 75;
+  const curveEnd = center + 75;
+  const controlPointXOffset = 31;
 
   return `
-    M 0 ${topY + cornerRadius}
-    Q 0 ${topY}, ${cornerRadius} ${topY}
+    M 0 ${topY}
     L ${curveStart} ${topY}
     C ${center - controlPointXOffset},${topY} ${center - controlPointXOffset},${dipHeight} ${center},${dipHeight}
     C ${center + controlPointXOffset},${dipHeight} ${center + controlPointXOffset},${topY} ${curveEnd},${topY}
-    L ${width - cornerRadius} ${topY}
-    Q ${width} ${topY}, ${width} ${topY + cornerRadius}
+    L ${width} ${topY}
     L ${width} ${height}
     L 0 ${height}
     Z
@@ -44,7 +41,7 @@ export function TabBarBackground({
   fillColor,
   colorScheme,
 }: TabBarBackgroundProps) {
-  const d = getTabPath(width, height);
+  const d = getTabBarPath(width, height);
 
   // Texture tile size
   const TILE_SIZE = 256;

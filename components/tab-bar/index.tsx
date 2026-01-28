@@ -6,7 +6,12 @@ import { Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-theme-color";
 
 import { CenterButton } from "./center-button";
-import { CENTER_BUTTON_SIZE, CURVE_WIDTH, TABS } from "./constants";
+import {
+  CENTER_BUTTON_SIZE,
+  CURVE_WIDTH,
+  TABS,
+  TAB_BAR_HEIGHT,
+} from "./constants";
 import { TabBarBackground } from "./tab-bar-background";
 import { TabButton } from "./tab-button";
 
@@ -16,7 +21,7 @@ export function TabBar({ state, navigation }: BottomTabBarProps) {
   const colorScheme = useColorScheme() ?? "light";
   const theme = Colors[colorScheme];
 
-  const TAB_HEIGHT = 75 + insets.bottom;
+  const TAB_HEIGHT = TAB_BAR_HEIGHT + insets.bottom;
 
   return (
     <View className="absolute bottom-0 w-full" style={{ height: TAB_HEIGHT }}>
@@ -35,7 +40,6 @@ export function TabBar({ state, navigation }: BottomTabBarProps) {
                 key={tab.name}
                 curveWidth={CURVE_WIDTH}
                 buttonSize={CENTER_BUTTON_SIZE}
-                tintColor={theme.tint}
                 onPress={() => navigation.navigate("add")}
               />
             );
@@ -67,6 +71,7 @@ export function TabBar({ state, navigation }: BottomTabBarProps) {
               onPress={onPress}
               activeColor={theme.tabIconSelected}
               inactiveColor={theme.tabIconDefault}
+              activeIconShadowColor={theme.tabIconShadow}
             />
           );
         })}

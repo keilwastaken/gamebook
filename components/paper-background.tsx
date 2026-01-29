@@ -2,7 +2,7 @@ import { Image, StyleSheet, View } from "react-native";
 
 import { palette } from "@/constants/palette";
 
-const cardstockTexture = require("@/assets/images/cardstock-texture.png");
+const cardstockTexture = require("@/assets/images/cardstock-texture-tiny.jpg");
 
 interface PaperBackgroundProps {
   children: React.ReactNode;

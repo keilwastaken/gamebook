@@ -1,6 +1,9 @@
 import { useRef } from "react";
 import { Animated, Pressable, View, Image, StyleSheet } from "react-native";
 
+const buttonDefault = require("@/assets/images/clay-plus-button-tiny.png");
+const buttonPressed = require("@/assets/images/clay-plus-button-dark-tiny.png");
+
 interface CenterButtonProps {
   curveWidth: number;
   buttonSize: number;
@@ -13,7 +16,7 @@ export function CenterButton({
   onPress,
 }: CenterButtonProps) {
   const scaleAnim = useRef(new Animated.Value(1)).current;
-  const opacityAnim = useRef(new Animated.Value(1)).current;
+  const darkFadeAnim = useRef(new Animated.Value(0)).current;
 
   const handlePressIn = () => {
     Animated.parallel([
@@ -24,9 +27,9 @@ export function CenterButton({
         speed: 50,
         bounciness: 4,
       }),
-      // Slight dimming to simulate pressure/shadow
-      Animated.timing(opacityAnim, {
-        toValue: 0.9,
+      // Fade in dark button
+      Animated.timing(darkFadeAnim, {
+        toValue: 1,
         duration: 100,
         useNativeDriver: true,
       }),
@@ -42,9 +45,10 @@ export function CenterButton({
         speed: 20,
         bounciness: 12,
       }),
-      Animated.timing(opacityAnim, {
-        toValue: 1,
-        duration: 100,
+      // Fade out dark button
+      Animated.timing(darkFadeAnim, {
+        toValue: 0,
+        duration: 150,
         useNativeDriver: true,
       }),
     ]).start();
@@ -72,13 +76,21 @@ export function CenterButton({
               width: buttonSize,
               height: buttonSize,
               transform: [{ scale: scaleAnim }],
-              opacity: opacityAnim,
             },
           ]}
         >
           <Image
-            source={require("@/assets/images/clay-plus-button.png")}
+            source={buttonDefault}
             style={styles.image}
+            resizeMode="contain"
+          />
+          <Animated.Image
+            source={buttonPressed}
+            style={[
+              styles.image,
+              styles.darkOverlay,
+              { opacity: darkFadeAnim },
+            ]}
             resizeMode="contain"
           />
         </Animated.View>
@@ -101,5 +113,10 @@ const styles = StyleSheet.create({
   image: {
     width: "100%",
     height: "100%",
+  },
+  darkOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
   },
 });

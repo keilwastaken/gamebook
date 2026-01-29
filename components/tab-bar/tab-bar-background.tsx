@@ -82,7 +82,7 @@ export function TabBarBackground({
         <Path
           d={d}
           fill="url(#corkTexture)"
-          fillOpacity={colorScheme === "dark" ? 0.16 : 0.32}
+          fillOpacity={colorScheme === "dark" ? 0.3 : 0.32}
         />
 
         {/* Layer 3: Subtle stroke */}

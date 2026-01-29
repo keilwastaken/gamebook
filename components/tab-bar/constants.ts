@@ -25,10 +25,10 @@ export const TABS: TabConfig[] = [
 ];
 
 // Layout dimensions
-export const TAB_BAR_HEIGHT = 32;
-export const CENTER_BUTTON_SIZE = 88;
+export const TAB_BAR_HEIGHT = 42;
+export const CENTER_BUTTON_SIZE = 100;
 export const CURVE_WIDTH = 130;
 
 // Icon sizes
-export const ICON_SIZE_FOCUSED = 28;
-export const ICON_SIZE_DEFAULT = 26;
+export const ICON_SIZE_FOCUSED = 34;
+export const ICON_SIZE_DEFAULT = 31;

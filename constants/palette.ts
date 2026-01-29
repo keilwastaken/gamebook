@@ -21,7 +21,7 @@ export const palette = {
   warm: {
     50: "#FAF6F1",
     100: "#F0E6D9",
-    200: "#E2CDB3",
+    200: "#E2D5B9",
     300: "#D4B48D",
     400: "#C49B6B", // card accent
     500: "#A67C52",

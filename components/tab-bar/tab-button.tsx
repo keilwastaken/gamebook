@@ -1,8 +1,6 @@
 import { useRef } from "react";
 import { Animated, Pressable } from "react-native";
 
-import { palette } from "@/constants/palette";
-
 import {
   ICON_SIZE_DEFAULT,
   ICON_SIZE_FOCUSED,

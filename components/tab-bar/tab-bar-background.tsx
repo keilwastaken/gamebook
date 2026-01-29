@@ -3,8 +3,6 @@ import Svg, { Defs, Image as SvgImage, Path, Pattern } from "react-native-svg";
 
 import { palette } from "@/constants/palette";
 
-import { CURVE_DEPTH, CURVE_WIDTH } from "./constants";
-
 const corkTexture = require("@/assets/images/cork-texture-blurred-tiny.jpg");
 
 interface TabBarBackgroundProps {

@@ -1,13 +1,11 @@
-import { PaperBackground } from "@/components/paper-background";
-import { ThemedText } from "@/components/themed-text";
 import { View } from "react-native";
+
+import { ThemedText } from "@/components/themed-text";
 
 export default function FavoritesScreen() {
   return (
-    <PaperBackground>
-      <View className="flex-1 items-center justify-center">
-        <ThemedText type="title">Favorites</ThemedText>
-      </View>
-    </PaperBackground>
+    <View className="flex-1 items-center justify-center">
+      <ThemedText type="title">Favorites</ThemedText>
+    </View>
   );
 }

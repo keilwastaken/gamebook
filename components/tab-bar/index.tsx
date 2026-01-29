@@ -1,44 +1,33 @@
 import { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import { Dimensions, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-theme-color";
 
 import { CenterButton } from "./center-button";
-import {
-  CENTER_BUTTON_SIZE,
-  CURVE_WIDTH,
-  TABS,
-  TAB_BAR_HEIGHT,
-} from "./constants";
+import { ICON_SIZE_RATIO, TAB_BAR_HEIGHT_RATIO, TABS } from "./constants";
 import { TabBarBackground } from "./tab-bar-background";
 import { TabButton } from "./tab-button";
 
 export function TabBar({ state, navigation }: BottomTabBarProps) {
   const { width } = Dimensions.get("window");
-  const insets = useSafeAreaInsets();
   const colorScheme = useColorScheme() ?? "light";
   const theme = Colors[colorScheme];
 
-  const TAB_HEIGHT = TAB_BAR_HEIGHT + insets.bottom;
+  const tabBarHeight = width * TAB_BAR_HEIGHT_RATIO;
+  const iconSize = width * ICON_SIZE_RATIO;
 
   return (
-    <View className="absolute bottom-0 w-full" style={{ height: TAB_HEIGHT }}>
-      <TabBarBackground
-        width={width}
-        height={TAB_HEIGHT}
-        colorScheme={colorScheme}
-      />
+    <View className="absolute bottom-0 w-full" style={{ height: tabBarHeight }}>
+      <TabBarBackground width={width} />
 
-      <View className="flex-row items-center justify-between px-6">
-        {TABS.map((tab, index) => {
+      <View className="flex-1 flex-row items-center justify-evenly px-[5%]">
+        {TABS.map((tab) => {
           if (tab.isCenter) {
             return (
               <CenterButton
                 key={tab.name}
-                curveWidth={CURVE_WIDTH}
-                buttonSize={CENTER_BUTTON_SIZE}
+                size={iconSize * 2.5}
                 onPress={() => navigation.navigate("add")}
               />
             );
@@ -67,6 +56,7 @@ export function TabBar({ state, navigation }: BottomTabBarProps) {
               key={tab.name}
               tab={tab}
               isFocused={isFocused}
+              iconSize={iconSize}
               onPress={onPress}
               activeColor={theme.tabIconSelected}
               inactiveColor={theme.tabIconDefault}

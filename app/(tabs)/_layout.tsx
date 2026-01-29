@@ -7,8 +7,10 @@ export default function TabLayout() {
   return (
     <Tabs
       tabBar={(props) => <TabBar {...props} />}
+      sceneContainerStyle={{ backgroundColor: "transparent" }}
       screenOptions={{
         headerShown: false,
+        contentStyle: { backgroundColor: "transparent" },
       }}
     >
       <Tabs.Screen name="index" />

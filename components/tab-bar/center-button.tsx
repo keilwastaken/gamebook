@@ -7,29 +7,22 @@ const buttonDefault = require("@/assets/images/clay-plus-button-tiny.png");
 const buttonPressed = require("@/assets/images/clay-plus-button-dark-tiny.png");
 
 interface CenterButtonProps {
-  curveWidth: number;
-  buttonSize: number;
+  size: number;
   onPress: () => void;
 }
 
-export function CenterButton({
-  curveWidth,
-  buttonSize,
-  onPress,
-}: CenterButtonProps) {
+export function CenterButton({ size, onPress }: CenterButtonProps) {
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const darkFadeAnim = useRef(new Animated.Value(0)).current;
 
   const handlePressIn = () => {
     Animated.parallel([
-      // Shrink to 90% (the "squish")
       Animated.spring(scaleAnim, {
         toValue: 0.9,
         useNativeDriver: true,
         speed: 50,
         bounciness: 4,
       }),
-      // Fade in dark button
       Animated.timing(darkFadeAnim, {
         toValue: 1,
         duration: 100,
@@ -40,14 +33,12 @@ export function CenterButton({
 
   const handlePressOut = () => {
     Animated.parallel([
-      // Bounce back with rubber feel
       Animated.spring(scaleAnim, {
         toValue: 1,
         useNativeDriver: true,
         speed: 20,
         bounciness: 12,
       }),
-      // Fade out dark button
       Animated.timing(darkFadeAnim, {
         toValue: 0,
         duration: 150,
@@ -57,14 +48,7 @@ export function CenterButton({
   };
 
   return (
-    <View
-      style={{
-        width: curveWidth,
-        marginTop: -32,
-        alignItems: "center",
-        justifyContent: "center",
-      }}
-    >
+    <View className="flex-1 items-center justify-center mb-[8%]">
       <Pressable
         onPress={onPress}
         onPressIn={handlePressIn}
@@ -75,8 +59,8 @@ export function CenterButton({
           style={[
             styles.container,
             {
-              width: buttonSize,
-              height: buttonSize,
+              width: size,
+              height: size,
               transform: [{ scale: scaleAnim }],
             },
           ]}
@@ -105,7 +89,6 @@ const styles = StyleSheet.create({
   container: {
     justifyContent: "center",
     alignItems: "center",
-    // Shadow syncs with scale animation for realistic depth
     shadowColor: palette.sage[600],
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.35,

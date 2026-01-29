@@ -1,16 +1,12 @@
 import { useRef } from "react";
 import { Animated, Pressable } from "react-native";
 
-import {
-  ICON_SIZE_DEFAULT,
-  ICON_SIZE_FOCUSED,
-  TAB_BAR_HEIGHT,
-  TabConfig,
-} from "./constants";
+import { TabConfig } from "./constants";
 
 interface TabButtonProps {
   tab: TabConfig;
   isFocused: boolean;
+  iconSize: number;
   onPress: () => void;
   activeColor: string;
   inactiveColor: string;
@@ -20,6 +16,7 @@ interface TabButtonProps {
 export function TabButton({
   tab,
   isFocused,
+  iconSize,
   onPress,
   activeColor,
   inactiveColor,
@@ -45,13 +42,14 @@ export function TabButton({
     }).start();
   };
 
+  const size = isFocused ? iconSize * 1.1 : iconSize;
+
   return (
     <Pressable
       onPress={onPress}
       onPressIn={handlePressIn}
       onPressOut={handlePressOut}
       className="flex-1 items-center justify-center"
-      style={{ height: TAB_BAR_HEIGHT }}
     >
       <Animated.View
         className="items-center justify-center"
@@ -67,7 +65,7 @@ export function TabButton({
         ]}
       >
         <tab.icon
-          size={isFocused ? ICON_SIZE_FOCUSED : ICON_SIZE_DEFAULT}
+          size={size}
           color={isFocused ? activeColor : inactiveColor}
           weight="fill"
         />

@@ -28,7 +28,6 @@ export const TABS: TabConfig[] = [
 export const TAB_BAR_HEIGHT = 32;
 export const CENTER_BUTTON_SIZE = 88;
 export const CURVE_WIDTH = 130;
-export const CURVE_DEPTH = 42;
 
 // Icon sizes
 export const ICON_SIZE_FOCUSED = 28;

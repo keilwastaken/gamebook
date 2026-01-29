@@ -28,7 +28,6 @@ export function TabBar({ state, navigation }: BottomTabBarProps) {
       <TabBarBackground
         width={width}
         height={TAB_HEIGHT}
-        fillColor={theme.background}
         colorScheme={colorScheme}
       />
 

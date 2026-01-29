@@ -1,6 +1,8 @@
 import { useRef } from "react";
 import { Animated, Pressable, View, Image, StyleSheet } from "react-native";
 
+import { palette } from "@/constants/palette";
+
 const buttonDefault = require("@/assets/images/clay-plus-button-tiny.png");
 const buttonPressed = require("@/assets/images/clay-plus-button-dark-tiny.png");
 
@@ -104,7 +106,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     // Shadow syncs with scale animation for realistic depth
-    shadowColor: "#596A5C",
+    shadowColor: palette.sage[600],
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.35,
     shadowRadius: 10,

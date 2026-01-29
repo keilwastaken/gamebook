@@ -8,7 +8,6 @@ const corkTexture = require("@/assets/images/cork-texture-blurred-tiny.jpg");
 interface TabBarBackgroundProps {
   width: number;
   height: number;
-  fillColor: string;
   colorScheme: "light" | "dark";
 }
 
@@ -36,7 +35,6 @@ const getTabBarPath = (width: number, height: number) => {
 export function TabBarBackground({
   width,
   height,
-  fillColor,
   colorScheme,
 }: TabBarBackgroundProps) {
   const d = getTabBarPath(width, height);

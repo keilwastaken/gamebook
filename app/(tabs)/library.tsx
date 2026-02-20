@@ -5,6 +5,7 @@ import { ThemedText } from "@/components/themed-text";
 export default function LibraryScreen() {
   return (
     <View
+      testID="screen-library"
       style={{
         flex: 1,
         alignItems: "center",

@@ -1,50 +1,80 @@
-# Welcome to your Expo app 👋
+# Gamebook
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+A cozy companion app for tracking and celebrating your gaming journey.
+Built with React Native, Expo, and warm vibes.
 
-## Get started
-
-1. Install dependencies
-
-   ```bash
-   npm install
-   ```
-
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+## Getting Started
 
 ```bash
-npm run reset-project
+pnpm install
+pnpm start
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+Open in [Expo Go](https://expo.dev/go), an
+[iOS simulator](https://docs.expo.dev/workflow/ios-simulator/), or an
+[Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/).
 
-## Learn more
+## Scripts
 
-To learn more about developing your project with Expo, look at the following resources:
+| Command | What it does |
+|---------|-------------|
+| `pnpm start` | Start Expo dev server |
+| `pnpm ios` | Start on iOS simulator |
+| `pnpm android` | Start on Android emulator |
+| `pnpm lint` | Run ESLint |
+| `pnpm typecheck` | Run TypeScript type checking |
+| `pnpm test` | Run unit & component tests (Jest) |
+| `pnpm test:watch` | Jest in watch mode |
+| `pnpm test:ci` | Jest with CI reporter + coverage |
+| `pnpm e2e:build:ios` | Build Detox iOS test app |
+| `pnpm e2e:test:ios` | Run Detox E2E on iOS simulator |
+| `pnpm verify-harness` | Run all checks (lint, type, test, doc-links) |
+| `./capture-ui.sh <name>` | Screenshot simulator to `.screenshots/<name>.png` |
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+## Project Structure
 
-## Join the community
+```
+CLAUDE.md              # Source of truth for all agents and contributors
+AGENTS.md              # Points to CLAUDE.md
+.cursorrules           # Points to CLAUDE.md
+docs/                  # Versioned knowledge base
+  architecture.md      # App structure, layers, dependency rules
+  testing-strategy.md  # Test harness: unit, component, E2E, visual
+  ci-gates.md          # CI jobs and pass criteria
+  exec-plans/          # Execution plans for larger work items
+app/                   # File-based routing (screens)
+  (tabs)/              # Bottom-tab navigation group
+components/            # Reusable UI components
+  tab-bar/             # Custom bottom tab bar
+  ui/                  # Generic UI primitives
+constants/             # Palette, theme, app constants
+hooks/                 # Custom React hooks
+assets/                # Static images and textures
+e2e/                   # Detox E2E test specs
+scripts/               # Verification and utility scripts
+```
 
-Join our community of developers creating universal apps.
+## Documentation
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+All project guidelines live in [CLAUDE.md](CLAUDE.md) — that's the single
+source of truth for rules, design principles, and workflows.
+
+Deep-dive docs live in [docs/](docs/README.md):
+
+- [Architecture](docs/architecture.md) — stack, directory layout, dependency rules
+- [Testing Strategy](docs/testing-strategy.md) — Jest, Detox, visual verification
+- [CI Gates](docs/ci-gates.md) — GitHub Actions jobs and pass criteria
+- [Execution Plans](docs/exec-plans/) — plans for in-flight and completed work
+
+## Tech Stack
+
+- **React Native** 0.81 via **Expo** SDK 54
+- **Expo Router** v6 (file-based routing)
+- **NativeWind** (Tailwind CSS for RN)
+- **Phosphor Icons** for friendly, rounded iconography
+- **Jest** + **React Native Testing Library** for unit/component tests
+- **Detox** for E2E tests
+
+## License
+
+See [LICENSE](LICENSE).

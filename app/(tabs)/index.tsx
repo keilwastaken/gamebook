@@ -20,6 +20,7 @@ const DEMO_GAMES = [
 export default function HomeScreen() {
   return (
     <ScrollView
+      testID="screen-home"
       contentContainerStyle={styles.scrollContent}
       style={styles.scroll}
       showsVerticalScrollIndicator={false}

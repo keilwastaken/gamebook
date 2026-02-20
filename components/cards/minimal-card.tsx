@@ -1,4 +1,3 @@
-import { useMemo } from "react";
 import {
   Image,
   View,
@@ -10,7 +9,6 @@ import {
 import { palette } from "@/constants/palette";
 import { CozyShadows } from "@/utils/shadows";
 import type { GameCardData } from "./types";
-import { randomRotation } from "./types";
 
 export interface MinimalCardProps {
   game: GameCardData;

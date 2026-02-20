@@ -19,6 +19,9 @@
     "reset-watchman": "watchman watch-del '/Users/keilaloia/gamebook' ; watchman watch-project '/Users/keilaloia/gamebook'"
   },
   "dependencies": {
+    "@expo/vector-icons": "^15.0.3",
+    "@react-navigation/bottom-tabs": "^7.14.0",
+    "@react-navigation/native": "^7.1.28",
     "expo": "~54.0.32",
     "expo-haptics": "~15.0.8",
     "expo-linear-gradient": "~15.0.8",

@@ -52,16 +52,18 @@ is net-new and never overwrites an existing object by ID.
 ## Span Policy
 
 Defined in `getCardSpan()` and `getCardSpanPresets()` in `lib/board-layout.ts`.
+The system now uses a grid size type model (`GridSizeId`) that represents all
+sizes from `1x1` through `4x4`, then applies per-ticket allowlists.
 
 Current defaults and presets:
 
 | Type | Default | Allowed presets |
 |------|---------|-----------------|
-| polaroid | 1x2 | 1x2, 2x2 |
+| polaroid | 1x1 | 1x1, 2x1, 1x2, 2x2 |
 | postcard | 2x1 | 2x1, 2x2 |
 | ticket | 2x1 | 2x1, 2x2 |
-| minimal | 1x1 | 1x1, 2x1, 2x2 |
-| widget | 1x1 | 1x1, 2x1, 2x2 |
+| minimal | 1x1 | 1x1, 2x1, 1x2, 2x2 |
+| widget | 1x1 | 1x1, 2x1, 1x2, 2x2 |
 
 Rules:
 
@@ -69,6 +71,13 @@ Rules:
 2. Legacy spans are normalized on load.
 3. During drag, hover highlight is locked to current card span.
 4. Span change is explicit from note overlay size control.
+5. For card types with base `1x1`, the size UI can expose multiple 2x2 icon
+   permutations that map to the same span (for richer visual choices) while
+   still persisting only `w/h`.
+6. Icon options are ticket-type-specific:
+   - `polaroid`, `minimal`, `widget`: full 2x2 icon permutation set
+   - `postcard`, `ticket`: `top-row`, `bottom-row`, `full-grid`
+7. UI option order is least-filled to most-filled, with `full-grid` always last.
 
 ## Placement Algorithms
 

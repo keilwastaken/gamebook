@@ -347,7 +347,7 @@ describe("useGames", () => {
         status: "playing",
         ticketType: "polaroid",
         notes: [],
-        board: { x: 0, y: 0, w: 2, h: 1, columns: 4 },
+        board: { x: 0, y: 0, w: 5, h: 5, columns: 4 },
       },
     ];
     mockGetItem.mockResolvedValue(JSON.stringify(stored));
@@ -355,7 +355,7 @@ describe("useGames", () => {
     const { result } = renderHook(() => useGames());
     await waitFor(() => expect(result.current.loading).toBe(false));
 
-    expect(result.current.games[0].board).toMatchObject({ w: 1, h: 2, columns: 4 });
+    expect(result.current.games[0].board).toMatchObject({ w: 2, h: 2, columns: 4 });
     expect(mockSetItem).toHaveBeenCalled();
   });
 
@@ -367,7 +367,7 @@ describe("useGames", () => {
         status: "playing",
         ticketType: "polaroid",
         notes: [],
-        board: { x: 0, y: 0, w: 1, h: 2, columns: 4 },
+        board: { x: 0, y: 0, w: 1, h: 1, columns: 4 },
       },
     ];
     mockGetItem.mockResolvedValue(JSON.stringify(stored));
@@ -378,7 +378,7 @@ describe("useGames", () => {
     await act(async () => {
       await result.current.cycleGameSpanPreset!("g1", 4);
     });
-    expect(result.current.games[0].board).toMatchObject({ w: 2, h: 2, columns: 4 });
+    expect(result.current.games[0].board).toMatchObject({ w: 2, h: 1, columns: 4 });
 
     await act(async () => {
       await result.current.cycleGameSpanPreset!("g1", 4);

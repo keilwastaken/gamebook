@@ -1,53 +1,58 @@
-import type { Game, TicketType } from "./types";
+import type { Game, GridSizeId, GridSpan, TicketType } from "./types";
 
 export const DEFAULT_BOARD_COLUMNS = 4;
 export type HoverZone = "left" | "right" | "top" | "bottom" | "middle";
 
-type Span = { w: number; h: number };
+const GRID_UNITS = [1, 2, 3, 4] as const;
+export const ALL_GRID_SIZE_IDS: GridSizeId[] = GRID_UNITS.flatMap((h) =>
+  GRID_UNITS.map((w) => `${w}x${h}` as GridSizeId)
+);
+
+function gridSizeIdToSpan(sizeId: GridSizeId): GridSpan {
+  const [w, h] = sizeId.split("x").map(Number);
+  return { w, h };
+}
+
+const DEFAULT_GRID_SIZE_ID_BY_TICKET_TYPE: Record<TicketType, GridSizeId> = {
+  polaroid: "1x1",
+  postcard: "2x1",
+  ticket: "2x1",
+  minimal: "1x1",
+  widget: "1x1",
+};
+
+const ALLOWED_GRID_SIZE_IDS_BY_TICKET_TYPE: Record<TicketType, GridSizeId[]> = {
+  polaroid: ["1x1", "2x1", "1x2", "2x2"],
+  postcard: ["2x1", "2x2"],
+  ticket: ["2x1", "2x2"],
+  minimal: ["1x1", "2x1", "1x2", "2x2"],
+  widget: ["1x1", "2x1", "1x2", "2x2"],
+};
+
+export function getAllowedGridSizeIds(
+  ticketType: TicketType | undefined
+): GridSizeId[] {
+  if (!ticketType) return ["1x1"];
+  return ALLOWED_GRID_SIZE_IDS_BY_TICKET_TYPE[ticketType];
+}
 
 export function getCardSpan(ticketType: TicketType | undefined): {
   w: number;
   h: number;
 } {
-  if (ticketType === "polaroid") return { w: 1, h: 2 };
-  if (ticketType === "postcard") return { w: 2, h: 1 };
-  if (ticketType === "ticket") return { w: 2, h: 1 };
-  if (ticketType === "minimal") return { w: 1, h: 1 };
-  if (ticketType === "widget") return { w: 1, h: 1 };
-  return { w: 1, h: 1 };
+  if (!ticketType) return { w: 1, h: 1 };
+  const sizeId = DEFAULT_GRID_SIZE_ID_BY_TICKET_TYPE[ticketType];
+  return gridSizeIdToSpan(sizeId);
 }
 
 export function getCardSpanPresets(
   ticketType: TicketType | undefined,
   columns: number
-): Span[] {
+): GridSpan[] {
   const maxW = Math.max(1, Math.min(columns, 4));
-  const presetsByType: Record<TicketType, Span[]> = {
-    polaroid: [
-      { w: 1, h: 2 },
-      { w: 2, h: 2 },
-    ],
-    postcard: [
-      { w: 2, h: 1 },
-      { w: 2, h: 2 },
-    ],
-    ticket: [
-      { w: 2, h: 1 },
-      { w: 2, h: 2 },
-    ],
-    minimal: [
-      { w: 1, h: 1 },
-      { w: 2, h: 1 },
-      { w: 2, h: 2 },
-    ],
-    widget: [
-      { w: 1, h: 1 },
-      { w: 2, h: 1 },
-      { w: 2, h: 2 },
-    ],
-  };
-  const presets = ticketType ? presetsByType[ticketType] : [{ w: 1, h: 1 }];
-  const visible = presets.filter((preset) => preset.w <= maxW);
+  const visible = getAllowedGridSizeIds(ticketType)
+    .map((sizeId) => gridSizeIdToSpan(sizeId))
+    .filter((preset) => preset.w <= maxW);
   return visible.length > 0 ? visible : [{ w: 1, h: 1 }];
 }
 

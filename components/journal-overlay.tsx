@@ -12,8 +12,23 @@ import {
 import * as Haptics from "expo-haptics";
 
 import { palette } from "@/constants/palette";
+import {
+  GRID_ACTIVE_FULL_GRID,
+  GRID_ACTIVE_LEFT_COLUMN,
+  GRID_ACTIVE_TOP_LEFT,
+  GRID_ACTIVE_TOP_ROW,
+  GridGlyph,
+  type GridCellPosition,
+} from "@/components/ui/grid-glyph";
 import { CozyShadows } from "@/utils/shadows";
 import type { Game } from "@/lib/types";
+
+export interface JournalSizePreset {
+  id?: string;
+  w: number;
+  h: number;
+  activePositions?: readonly GridCellPosition[];
+}
 
 export interface JournalOverlayProps {
   game: Game;
@@ -22,7 +37,7 @@ export interface JournalOverlayProps {
     quickThought?: string;
   }) => void;
   onClose: () => void;
-  sizePresets?: Array<{ w: number; h: number }>;
+  sizePresets?: JournalSizePreset[];
   currentSize?: { w: number; h: number };
   onSelectSize?: (span: { w: number; h: number }) => void;
 }
@@ -38,7 +53,7 @@ export function JournalOverlay({
   const [whereLeftOff, setWhereLeftOff] = useState("");
   const [quickThought, setQuickThought] = useState("");
   const [saving, setSaving] = useState(false);
-  const [showSizeOptions, setShowSizeOptions] = useState(false);
+  const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(40)).current;
@@ -62,6 +77,10 @@ export function JournalOverlay({
       whereInputRef.current?.focus();
     });
   }, [fadeAnim, slideAnim]);
+
+  useEffect(() => {
+    setSelectedPresetId(null);
+  }, [game.id]);
 
   const handleSave = async () => {
     if (!whereLeftOff.trim()) return;
@@ -138,38 +157,56 @@ export function JournalOverlay({
 
             <View style={styles.titleRow}>
               <Text style={styles.gameTitle}>{game.title}</Text>
-              {onSelectSize && sizePresets.length > 0 ? (
-                <Pressable
-                  testID="journal-size-button"
-                  style={styles.sizeButton}
-                  onPress={() => setShowSizeOptions((value) => !value)}
-                >
-                  <Text style={styles.sizeButtonText}>Size</Text>
-                </Pressable>
-              ) : null}
             </View>
-            {showSizeOptions && onSelectSize && sizePresets.length > 0 ? (
+            {onSelectSize && sizePresets.length > 0 ? (
               <View style={styles.sizeOptionsRow} testID="journal-size-options">
-                {sizePresets.map((preset) => {
-                  const selected =
-                    preset.w === currentSize?.w && preset.h === currentSize?.h;
-                  return (
-                    <Pressable
-                      key={`journal-size-${preset.w}x${preset.h}`}
-                      testID={`journal-size-${preset.w}x${preset.h}`}
-                      style={[
-                        styles.sizeOptionButton,
-                        selected && styles.sizeOptionButtonSelected,
-                      ]}
-                      onPress={() => {
-                        onSelectSize(preset);
-                        setShowSizeOptions(false);
-                      }}
-                    >
-                      <SpanGlyph span={preset} selected={selected} />
-                    </Pressable>
+                {(() => {
+                  const firstMatchingIndex = sizePresets.findIndex(
+                    (candidate) =>
+                      candidate.w === currentSize?.w && candidate.h === currentSize?.h
                   );
-                })}
+                  const hasActiveSelectedPreset =
+                    selectedPresetId !== null &&
+                    sizePresets.some((candidate) => {
+                      const candidateId =
+                        candidate.id ?? `${candidate.w}x${candidate.h}`;
+                      return (
+                        candidateId === selectedPresetId &&
+                        candidate.w === currentSize?.w &&
+                        candidate.h === currentSize?.h
+                      );
+                    });
+                  return sizePresets.map((preset, index) => {
+                    const presetId = preset.id ?? `${preset.w}x${preset.h}`;
+                    const currentSpanMatches =
+                      preset.w === currentSize?.w && preset.h === currentSize?.h;
+                    const selected =
+                      (hasActiveSelectedPreset
+                        ? selectedPresetId === presetId && currentSpanMatches
+                        : index === firstMatchingIndex) && currentSpanMatches;
+                    return (
+                      <Pressable
+                        key={`journal-size-${presetId}-${index}`}
+                        testID={`journal-size-${presetId}`}
+                        style={[
+                          styles.sizeOptionButton,
+                          selected && styles.sizeOptionButtonSelected,
+                        ]}
+                        onPress={() => {
+                          setSelectedPresetId(presetId);
+                          onSelectSize(preset);
+                        }}
+                      >
+                        <GridGlyph
+                          activePositions={
+                            preset.activePositions ?? getDefaultActivePositionsForSpan(preset)
+                          }
+                          selected={selected}
+                        />
+                      </Pressable>
+                    );
+                  });
+                })()}
               </View>
             ) : null}
 
@@ -261,30 +298,13 @@ function SaveButton({
   );
 }
 
-function SpanGlyph({
-  span,
-  selected,
-}: {
-  span: { w: number; h: number };
-  selected: boolean;
-}) {
-  const cells = [];
-  for (let row = 0; row < 2; row += 1) {
-    for (let col = 0; col < 2; col += 1) {
-      const filled = col < span.w && row < span.h;
-      cells.push(
-        <View
-          key={`glyph-${col}-${row}`}
-          style={[
-            styles.spanGlyphCell,
-            filled && styles.spanGlyphCellFilled,
-            filled && selected && styles.spanGlyphCellSelected,
-          ]}
-        />
-      );
-    }
-  }
-  return <View style={styles.spanGlyph}>{cells}</View>;
+function getDefaultActivePositionsForSpan(
+  span: { w: number; h: number }
+): readonly GridCellPosition[] {
+  if (span.w >= 2 && span.h >= 2) return GRID_ACTIVE_FULL_GRID;
+  if (span.w >= 2) return GRID_ACTIVE_TOP_ROW;
+  if (span.h >= 2) return GRID_ACTIVE_LEFT_COLUMN;
+  return GRID_ACTIVE_TOP_LEFT;
 }
 
 const styles = StyleSheet.create({
@@ -327,28 +347,11 @@ const styles = StyleSheet.create({
   titleRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
     marginBottom: 14,
-  },
-  sizeButton: {
-    height: 28,
-    minWidth: 56,
-    borderRadius: 14,
-    backgroundColor: palette.sage[50],
-    borderWidth: 1,
-    borderColor: palette.sage[300],
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 10,
-  },
-  sizeButtonText: {
-    fontSize: 12,
-    fontFamily: "Nunito",
-    fontWeight: "700",
-    color: palette.sage[600],
   },
   sizeOptionsRow: {
     flexDirection: "row",
+    flexWrap: "wrap",
     gap: 8,
     marginBottom: 12,
   },
@@ -365,28 +368,6 @@ const styles = StyleSheet.create({
   sizeOptionButtonSelected: {
     borderColor: palette.sage[500],
     backgroundColor: palette.sage[50],
-  },
-  spanGlyph: {
-    width: 18,
-    height: 18,
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 2,
-  },
-  spanGlyphCell: {
-    width: 8,
-    height: 8,
-    borderRadius: 2,
-    borderWidth: 1,
-    borderColor: palette.sage[300],
-    backgroundColor: "transparent",
-  },
-  spanGlyphCellFilled: {
-    backgroundColor: palette.sage[300],
-  },
-  spanGlyphCellSelected: {
-    borderColor: palette.sage[500],
-    backgroundColor: palette.sage[500],
   },
   sectionLabel: {
     fontSize: 10,

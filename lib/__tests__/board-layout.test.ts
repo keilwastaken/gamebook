@@ -1,8 +1,10 @@
 import {
+  ALL_GRID_SIZE_IDS,
   applyBoardLayout,
   applyBoardLayoutWithPinned,
   constrainSpanForCard,
   findBestInsertion,
+  getAllowedGridSizeIds,
   getCardSpanPresets,
   getAxisIntentSpan,
   getHoverZone,
@@ -19,6 +21,19 @@ const BASE_GAMES: Game[] = [
 ];
 
 describe("board-layout", () => {
+  it("defines grid size ids for every size from 1x1 to 4x4", () => {
+    expect(ALL_GRID_SIZE_IDS).toHaveLength(16);
+    expect(ALL_GRID_SIZE_IDS[0]).toBe("1x1");
+    expect(ALL_GRID_SIZE_IDS).toContain("4x4");
+  });
+
+  it("maps ticket types to allowed grid sizes", () => {
+    expect(getAllowedGridSizeIds("polaroid")).toEqual(["1x1", "2x1", "1x2", "2x2"]);
+    expect(getAllowedGridSizeIds("postcard")).toEqual(["2x1", "2x2"]);
+    expect(getAllowedGridSizeIds("minimal")).toEqual(["1x1", "2x1", "1x2", "2x2"]);
+    expect(getAllowedGridSizeIds("widget")).toEqual(["1x1", "2x1", "1x2", "2x2"]);
+  });
+
   it.each(["polaroid", "postcard", "widget", "ticket", "minimal"] as const)(
     "findBestInsertion can move %s card to top-left",
     (id) => {
@@ -57,7 +72,7 @@ describe("board-layout", () => {
   it("constrains legacy spans to type presets", () => {
     expect(constrainSpanForCard("polaroid", { w: 4, h: 1 }, 4)).toMatchObject({
       w: 1,
-      h: 2,
+      h: 1,
     });
     expect(constrainSpanForCard("postcard", { w: 4, h: 4 }, 4)).toMatchObject({
       w: 2,
@@ -114,7 +129,10 @@ describe("board-layout", () => {
   });
 
   it("exposes preset options by card type", () => {
-    expect(getCardSpanPresets("polaroid", 4)).toEqual([
+    const polaroidPresets = getCardSpanPresets("polaroid", 4);
+    expect(polaroidPresets).toEqual([
+      { w: 1, h: 1 },
+      { w: 2, h: 1 },
       { w: 1, h: 2 },
       { w: 2, h: 2 },
     ]);

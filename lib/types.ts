@@ -7,6 +7,10 @@ export type TicketType =
 
 export const DEFAULT_TICKET_TYPE: TicketType = "polaroid";
 
+export type GridUnit = 1 | 2 | 3 | 4;
+export type GridSizeId = `${GridUnit}x${GridUnit}`;
+export type GridSpan = { w: number; h: number };
+
 export type CardMountStyle = "tape" | "color-pin" | "metal-pin";
 
 export const DEFAULT_CARD_MOUNT_STYLE: CardMountStyle = "tape";

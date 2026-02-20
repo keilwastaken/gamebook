@@ -19,7 +19,21 @@ import {
   TicketCard,
   WidgetCard,
 } from "@/components/cards";
-import { JournalOverlay } from "@/components/journal-overlay";
+import {
+  JournalOverlay,
+  type JournalSizePreset,
+} from "@/components/journal-overlay";
+import {
+  GRID_ACTIVE_BOTTOM_LEFT,
+  GRID_ACTIVE_BOTTOM_RIGHT,
+  GRID_ACTIVE_BOTTOM_ROW,
+  GRID_ACTIVE_FULL_GRID,
+  GRID_ACTIVE_LEFT_COLUMN,
+  GRID_ACTIVE_RIGHT_COLUMN,
+  GRID_ACTIVE_TOP_LEFT,
+  GRID_ACTIVE_TOP_RIGHT,
+  GRID_ACTIVE_TOP_ROW,
+} from "@/components/ui/grid-glyph";
 import { useGamesContext } from "@/lib/games-context";
 import {
   applyBoardLayout,
@@ -36,6 +50,56 @@ const BASE_CARD_SIZE: Record<TicketType, { width: number; height: number }> = {
   widget: { width: 150, height: 98 },
   ticket: { width: 220, height: 90 },
   minimal: { width: 220, height: 84 },
+};
+
+const DEFAULT_SIZE_PRESET_ORDER: JournalSizePreset[] = [
+  { id: "top-left", w: 1, h: 1, activePositions: GRID_ACTIVE_TOP_LEFT },
+  { id: "top-right", w: 1, h: 1, activePositions: GRID_ACTIVE_TOP_RIGHT },
+  { id: "bottom-left", w: 1, h: 1, activePositions: GRID_ACTIVE_BOTTOM_LEFT },
+  { id: "bottom-right", w: 1, h: 1, activePositions: GRID_ACTIVE_BOTTOM_RIGHT },
+  { id: "top-row", w: 2, h: 1, activePositions: GRID_ACTIVE_TOP_ROW },
+  { id: "bottom-row", w: 2, h: 1, activePositions: GRID_ACTIVE_BOTTOM_ROW },
+  { id: "left-column", w: 1, h: 2, activePositions: GRID_ACTIVE_LEFT_COLUMN },
+  { id: "right-column", w: 1, h: 2, activePositions: GRID_ACTIVE_RIGHT_COLUMN },
+  { id: "full-grid", w: 2, h: 2, activePositions: GRID_ACTIVE_FULL_GRID },
+];
+
+const SIZE_PRESET_IDS_BY_TICKET_TYPE: Record<TicketType, string[]> = {
+  polaroid: [
+    "top-left",
+    "top-right",
+    "bottom-left",
+    "bottom-right",
+    "top-row",
+    "bottom-row",
+    "left-column",
+    "right-column",
+    "full-grid",
+  ],
+  postcard: ["top-row", "bottom-row", "full-grid"],
+  ticket: ["top-row", "bottom-row", "full-grid"],
+  minimal: [
+    "top-left",
+    "top-right",
+    "bottom-left",
+    "bottom-right",
+    "top-row",
+    "bottom-row",
+    "left-column",
+    "right-column",
+    "full-grid",
+  ],
+  widget: [
+    "top-left",
+    "top-right",
+    "bottom-left",
+    "bottom-right",
+    "top-row",
+    "bottom-row",
+    "left-column",
+    "right-column",
+    "full-grid",
+  ],
 };
 
 export default function HomeScreen() {
@@ -185,10 +249,29 @@ export default function HomeScreen() {
     setActiveGame(null);
   }, []);
 
-  const activeGameSpanPresets = useMemo(
-    () => getCardSpanPresets(activeGame?.ticketType, boardColumns),
-    [activeGame, boardColumns]
-  );
+  const activeGameSpanPresets = useMemo(() => {
+    if (!activeGame) return [];
+
+    const spanPresets = getCardSpanPresets(activeGame.ticketType, boardColumns);
+    const allowedPresetKeys = new Set(
+      spanPresets.map((preset) => `${preset.w}x${preset.h}`)
+    );
+
+    if (activeGame.ticketType) {
+      const presetMap = new Map(
+        DEFAULT_SIZE_PRESET_ORDER.map((preset) => [preset.id, preset] as const)
+      );
+      return SIZE_PRESET_IDS_BY_TICKET_TYPE[activeGame.ticketType]
+        .map((presetId) => presetMap.get(presetId))
+        .filter((preset): preset is JournalSizePreset => Boolean(preset))
+        .filter((preset) => allowedPresetKeys.has(`${preset.w}x${preset.h}`));
+    }
+
+    return spanPresets.map((preset) => ({
+      id: `${preset.w}x${preset.h}`,
+      ...preset,
+    }));
+  }, [activeGame, boardColumns]);
   const activeGameCurrentSpan = useMemo(() => {
     if (!activeGame) return { w: 1, h: 1 };
     return constrainSpanForCard(

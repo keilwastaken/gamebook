@@ -1,6 +1,7 @@
 import type { Game, TicketType } from "./types";
 
 export const DEFAULT_BOARD_COLUMNS = 4;
+export type HoverZone = "left" | "right" | "top" | "bottom" | "middle";
 
 export function getCardSpan(ticketType: TicketType | undefined): {
   w: number;
@@ -131,6 +132,132 @@ export function applyBoardLayout(games: Game[], columns: number): Game[] {
   });
 }
 
+export function applyBoardLayoutWithPinned(
+  games: Game[],
+  pinnedGameId: string,
+  pinnedTarget: { x: number; y: number; w: number; h: number },
+  columns: number
+): Game[] {
+  const pinnedGame = games.find((game) => game.id === pinnedGameId);
+  if (!pinnedGame) return applyBoardLayout(games, columns);
+
+  const occupied = new Set<string>();
+  const placements = new Map<string, Game["board"]>();
+
+  const isFree = (x: number, y: number, w: number, h: number) => {
+    for (let row = y; row < y + h; row += 1) {
+      for (let col = x; col < x + w; col += 1) {
+        if (occupied.has(`${col},${row}`)) return false;
+      }
+    }
+    return true;
+  };
+
+  const markUsed = (x: number, y: number, w: number, h: number) => {
+    for (let row = y; row < y + h; row += 1) {
+      for (let col = x; col < x + w; col += 1) {
+        occupied.add(`${col},${row}`);
+      }
+    }
+  };
+
+  const pinnedSpan = constrainSpanForCard(
+    pinnedGame.ticketType,
+    clampSpan({ w: pinnedTarget.w, h: pinnedTarget.h }, columns),
+    columns
+  );
+  const pinnedX = Math.max(0, Math.min(columns - pinnedSpan.w, pinnedTarget.x));
+  const pinnedY = Math.max(0, pinnedTarget.y);
+  markUsed(pinnedX, pinnedY, pinnedSpan.w, pinnedSpan.h);
+  placements.set(pinnedGameId, {
+    x: pinnedX,
+    y: pinnedY,
+    w: pinnedSpan.w,
+    h: pinnedSpan.h,
+    columns,
+  });
+
+  for (const game of games) {
+    if (game.id === pinnedGameId) continue;
+    const span = getEffectiveCardSpan(game, columns);
+    const w = Math.min(span.w, columns);
+
+    let y = 0;
+    let x = 0;
+    let placed = false;
+
+    while (!placed) {
+      for (let candidateX = 0; candidateX <= columns - w; candidateX += 1) {
+        if (isFree(candidateX, y, w, span.h)) {
+          x = candidateX;
+          placed = true;
+          break;
+        }
+      }
+      if (!placed) y += 1;
+    }
+
+    markUsed(x, y, w, span.h);
+    placements.set(game.id, { x, y, w, h: span.h, columns });
+  }
+
+  return games.map((game) => ({
+    ...game,
+    board: placements.get(game.id) ?? game.board,
+  }));
+}
+
+export function previewInsertionAtIndex(
+  games: Game[],
+  gameId: string,
+  insertionIndex: number,
+  columns: number,
+  spanOverride?: { w: number; h: number }
+): {
+  insertionIndex: number;
+  target: { x: number; y: number; w: number; h: number };
+} {
+  const movingOriginal = games.find((game) => game.id === gameId);
+  if (!movingOriginal) {
+    return {
+      insertionIndex: 0,
+      target: { x: 0, y: 0, w: 1, h: 1 },
+    };
+  }
+
+  const moving = spanOverride
+    ? {
+        ...movingOriginal,
+        board: {
+          ...(movingOriginal.board ?? {
+            x: 0,
+            y: 0,
+            columns,
+          }),
+          ...constrainSpanForCard(
+            movingOriginal.ticketType,
+            clampSpan(spanOverride, columns),
+            columns
+          ),
+          columns,
+        },
+      }
+    : movingOriginal;
+
+  const withoutMoving = games.filter((game) => game.id !== gameId);
+  const clampedIndex = Math.max(0, Math.min(insertionIndex, withoutMoving.length));
+  const candidateOrder = [...withoutMoving];
+  candidateOrder.splice(clampedIndex, 0, moving);
+  const laidOut = applyBoardLayout(candidateOrder, columns);
+  const placed = laidOut.find((game) => game.id === gameId);
+  const board = placed?.board ?? { x: 0, y: 0, w: 1, h: 1, columns };
+
+  return {
+    insertionIndex: clampedIndex,
+    target: { x: board.x, y: board.y, w: board.w, h: board.h },
+  };
+}
+
 export function findBestInsertion(
   games: Game[],
   gameId: string,
@@ -167,7 +294,6 @@ export function findBestInsertion(
         },
       }
     : movingOriginal;
-
   const withoutMoving = games.filter((game) => game.id !== gameId);
   const desiredW = moving.board?.w ?? 1;
   const desiredH = moving.board?.h ?? 1;
@@ -193,11 +319,14 @@ export function findBestInsertion(
   } | null = null;
 
   for (let insertionIndex = 0; insertionIndex <= withoutMoving.length; insertionIndex += 1) {
-    const candidateOrder = [...withoutMoving];
-    candidateOrder.splice(insertionIndex, 0, moving);
-    const laidOut = applyBoardLayout(candidateOrder, columns);
-    const placed = laidOut.find((game) => game.id === gameId);
-    const board = placed?.board ?? { x: 0, y: 0, w: 1, h: 1, columns };
+    const preview = previewInsertionAtIndex(
+      games,
+      gameId,
+      insertionIndex,
+      columns,
+      spanOverride
+    );
+    const board = preview.target;
     const targetRect = { x: board.x, y: board.y, w: board.w, h: board.h };
     const overlap = getOverlapArea(desiredRect, targetRect);
     const distance =
@@ -213,7 +342,7 @@ export function findBestInsertion(
         insertionIndex < best.insertionIndex)
     ) {
       best = {
-        insertionIndex,
+        insertionIndex: preview.insertionIndex,
         distance,
         overlap,
         target: { x: board.x, y: board.y, w: board.w, h: board.h },
@@ -243,4 +372,26 @@ export function getAxisIntentSpan(
   if (distanceToLine <= 0.035 && cap >= 3) return 3;
   if (distanceToLine <= 0.075 && cap >= 2) return 2;
   return 1;
+}
+
+export function getHoverZone(
+  normalizedX: number,
+  normalizedY: number,
+  edgeThreshold: number = 0.22
+): HoverZone {
+  const x = Math.max(0, Math.min(1, normalizedX));
+  const y = Math.max(0, Math.min(1, normalizedY));
+  const edge = Math.max(0.05, Math.min(0.45, edgeThreshold));
+
+  const distances: Array<{ zone: Exclude<HoverZone, "middle">; distance: number }> = [
+    { zone: "left", distance: x },
+    { zone: "right", distance: 1 - x },
+    { zone: "top", distance: y },
+    { zone: "bottom", distance: 1 - y },
+  ];
+  distances.sort((a, b) => a.distance - b.distance);
+  const nearest = distances[0];
+
+  if (nearest.distance <= edge) return nearest.zone;
+  return "middle";
 }

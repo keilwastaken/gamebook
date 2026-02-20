@@ -8,7 +8,11 @@ import {
   type Game,
   type GameNote,
 } from "./types";
-import { applyBoardLayout, DEFAULT_BOARD_COLUMNS } from "./board-layout";
+import {
+  applyBoardLayout,
+  applyBoardLayoutWithPinned,
+  DEFAULT_BOARD_COLUMNS,
+} from "./board-layout";
 
 const STORAGE_KEY = "@gamebook/games";
 let clientIdSequence = 0;
@@ -256,6 +260,22 @@ export function useGames() {
     []
   );
 
+  const moveGameToBoardTarget = useCallback(
+    async (
+      gameId: string,
+      target: { x: number; y: number; w: number; h: number },
+      columns: number = DEFAULT_BOARD_COLUMNS
+    ): Promise<void> => {
+      setGames((prev) => {
+        if (!prev.some((game) => game.id === gameId)) return prev;
+        const next = applyBoardLayoutWithPinned(prev, gameId, target, columns);
+        persistGames(next);
+        return next;
+      });
+    },
+    []
+  );
+
   return {
     games,
     playingGames,
@@ -264,5 +284,6 @@ export function useGames() {
     addGameWithInitialNote,
     saveBoardPlacement,
     reorderGame,
+    moveGameToBoardTarget,
   };
 }

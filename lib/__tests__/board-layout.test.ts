@@ -1,8 +1,11 @@
 import {
   applyBoardLayout,
+  applyBoardLayoutWithPinned,
   constrainSpanForCard,
   findBestInsertion,
   getAxisIntentSpan,
+  getHoverZone,
+  previewInsertionAtIndex,
 } from "../board-layout";
 import type { Game } from "../types";
 
@@ -66,5 +69,39 @@ describe("board-layout", () => {
       w: 2,
       h: 1,
     });
+  });
+
+  it("computes edge and middle hover zones", () => {
+    expect(getHoverZone(0.03, 0.5)).toBe("left");
+    expect(getHoverZone(0.97, 0.5)).toBe("right");
+    expect(getHoverZone(0.5, 0.04)).toBe("top");
+    expect(getHoverZone(0.5, 0.96)).toBe("bottom");
+    expect(getHoverZone(0.5, 0.5)).toBe("middle");
+  });
+
+  it("previews insertion at an explicit index for deterministic zone hover", () => {
+    const laidOut = applyBoardLayout(BASE_GAMES, 4);
+    const hoveredIndex = laidOut.findIndex((g) => g.id === "postcard");
+    const result = previewInsertionAtIndex(laidOut, "minimal", hoveredIndex, 4, {
+      w: 2,
+      h: 2,
+    });
+
+    expect(result.insertionIndex).toBe(hoveredIndex);
+    expect(result.target.w).toBe(2);
+    expect(result.target.h).toBe(2);
+  });
+
+  it("pins a moved card at an explicit slot and reflows others around it", () => {
+    const laidOut = applyBoardLayout(BASE_GAMES, 4);
+    const pinned = applyBoardLayoutWithPinned(
+      laidOut,
+      "postcard",
+      { x: 2, y: 3, w: 2, h: 1 },
+      4
+    );
+    const moved = pinned.find((g) => g.id === "postcard");
+
+    expect(moved?.board).toMatchObject({ x: 2, y: 3, w: 2, h: 1 });
   });
 });

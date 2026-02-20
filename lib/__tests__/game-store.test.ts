@@ -318,4 +318,24 @@ describe("useGames", () => {
     expect(moved?.board).toMatchObject({ x: 0, y: 0, w: 2, h: 2, columns: 4 });
     expect(mockSetItem).toHaveBeenCalled();
   });
+
+  it("moveGameToBoardTarget pins card at requested coordinates", async () => {
+    const stored = [
+      { id: "g1", title: "One", status: "playing", ticketType: "postcard", notes: [] },
+      { id: "g2", title: "Two", status: "playing", ticketType: "minimal", notes: [] },
+      { id: "g3", title: "Three", status: "playing", ticketType: "widget", notes: [] },
+    ];
+    mockGetItem.mockResolvedValue(JSON.stringify(stored));
+
+    const { result } = renderHook(() => useGames());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => {
+      await result.current.moveGameToBoardTarget!("g1", { x: 2, y: 3, w: 2, h: 1 }, 4);
+    });
+
+    const moved = result.current.games.find((game) => game.id === "g1");
+    expect(moved?.board).toMatchObject({ x: 2, y: 3, w: 2, h: 1, columns: 4 });
+    expect(mockSetItem).toHaveBeenCalled();
+  });
 });

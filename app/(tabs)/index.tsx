@@ -24,7 +24,6 @@ import { useGamesContext } from "@/lib/games-context";
 import {
   applyBoardLayout,
   constrainSpanForCard,
-  findBestInsertion,
   getAxisIntentSpan,
   getCardSpan,
 } from "@/lib/board-layout";
@@ -40,7 +39,7 @@ const BASE_CARD_SIZE: Record<TicketType, { width: number; height: number }> = {
 };
 
 export default function HomeScreen() {
-  const { playingGames, loading, saveNote, reorderGame } = useGamesContext();
+  const { playingGames, loading, saveNote, moveGameToBoardTarget } = useGamesContext();
   const [activeGame, setActiveGame] = useState<Game | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [, setDragSpan] = useState<{ w: number; h: number }>({ w: 1, h: 1 });
@@ -55,7 +54,6 @@ export default function HomeScreen() {
     y: number;
     w: number;
     h: number;
-    insertionIndex: number;
   } | null>(null);
   const consumeNextPress = useRef(false);
   const dragSpanRef = useRef<{ w: number; h: number }>({ w: 1, h: 1 });
@@ -73,7 +71,10 @@ export default function HomeScreen() {
     (boardWidth - BOARD_GAP * (boardColumns - 1)) / boardColumns;
   const rowHeight = cellWidth * 1.28;
   const boardGames = useMemo(
-    () => applyBoardLayout(playingGames, boardColumns),
+    () =>
+      playingGames.some((game) => !game.board)
+        ? applyBoardLayout(playingGames, boardColumns)
+        : playingGames,
     [playingGames, boardColumns]
   );
   const boardRows = useMemo(
@@ -174,7 +175,7 @@ export default function HomeScreen() {
   }, []);
 
   const updateDropTarget = useCallback(
-    (pointerX: number, pointerY: number) => {
+    (left: number, top: number, pointerX: number, pointerY: number) => {
       if (!draggingId) return;
       const moving = boardGames.find((game) => game.id === draggingId);
       const ticketType = moving?.ticketType ?? DEFAULT_TICKET_TYPE;
@@ -192,34 +193,62 @@ export default function HomeScreen() {
       const span = maybeApplyDragSpan(constrained);
       const strideX = cellWidth + BOARD_GAP;
       const strideY = rowHeight + BOARD_GAP;
-      const clampedX = Math.max(
-        0,
-        Math.min(
-          boardColumns - span.w,
-          Math.round(pointerX / strideX - span.w / 2)
-        )
+      const dragWidth = span.w * cellWidth + (span.w - 1) * BOARD_GAP;
+      const dragHeight = span.h * rowHeight + (span.h - 1) * BOARD_GAP;
+      const dragRect = { left, top, right: left + dragWidth, bottom: top + dragHeight };
+      const dragCenterX = left + dragWidth / 2;
+      const dragCenterY = top + dragHeight / 2;
+      const maxRowsToScan = Math.max(
+        boardRows + 3,
+        Math.ceil((top + dragHeight) / strideY) + 3,
+        6
       );
-      const clampedY = Math.max(
-        0,
-        Math.round(pointerY / strideY - span.h / 2)
-      );
-      const result = findBestInsertion(
-        boardGames,
-        draggingId,
-        clampedX,
-        clampedY,
-        boardColumns,
-        span
-      );
-      const key = `${result.target.x}-${result.target.y}-${result.target.w}-${result.target.h}-${result.insertionIndex}`;
+
+      let bestSlot: { x: number; y: number; overlap: number; centerDistance: number } | null = null;
+      for (let candidateY = 0; candidateY <= maxRowsToScan; candidateY += 1) {
+        for (let candidateX = 0; candidateX <= boardColumns - span.w; candidateX += 1) {
+          const slotLeft = candidateX * strideX;
+          const slotTop = candidateY * strideY;
+          const slotRight = slotLeft + dragWidth;
+          const slotBottom = slotTop + dragHeight;
+          const overlapWidth = Math.max(
+            0,
+            Math.min(dragRect.right, slotRight) - Math.max(dragRect.left, slotLeft)
+          );
+          const overlapHeight = Math.max(
+            0,
+            Math.min(dragRect.bottom, slotBottom) - Math.max(dragRect.top, slotTop)
+          );
+          const overlap = overlapWidth * overlapHeight;
+          const centerDistance =
+            Math.abs(dragCenterX - (slotLeft + dragWidth / 2)) +
+            Math.abs(dragCenterY - (slotTop + dragHeight / 2));
+
+          if (
+            !bestSlot ||
+            overlap > bestSlot.overlap ||
+            (overlap === bestSlot.overlap && centerDistance < bestSlot.centerDistance)
+          ) {
+            bestSlot = {
+              x: candidateX,
+              y: candidateY,
+              overlap,
+              centerDistance,
+            };
+          }
+        }
+      }
+
+      const desiredX = bestSlot?.x ?? 0;
+      const desiredY = bestSlot?.y ?? 0;
+      const key = `${desiredX}-${desiredY}-${span.w}-${span.h}`;
       if (key !== dropTargetKeyRef.current) {
         dropTargetKeyRef.current = key;
         setDropTarget({
-          x: result.target.x,
-          y: result.target.y,
-          w: result.target.w,
-          h: result.target.h,
-          insertionIndex: result.insertionIndex,
+          x: desiredX,
+          y: desiredY,
+          w: span.w,
+          h: span.h,
         });
       }
     },
@@ -229,21 +258,19 @@ export default function HomeScreen() {
       boardColumns,
       cellWidth,
       rowHeight,
+      boardRows,
       maybeApplyDragSpan,
     ]
   );
 
   const handleDrop = useCallback(async () => {
     if (!draggingId || !dropTarget) return;
-    await reorderGame(draggingId, dropTarget.insertionIndex, boardColumns, {
-      w: dropTarget.w,
-      h: dropTarget.h,
-    });
+    await moveGameToBoardTarget(draggingId, dropTarget, boardColumns);
     stopDragging();
   }, [
     draggingId,
     dropTarget,
-    reorderGame,
+    moveGameToBoardTarget,
     boardColumns,
     stopDragging,
   ]);
@@ -267,7 +294,7 @@ export default function HomeScreen() {
             gestureState.moveY - boardOriginRef.current.y - dragOffsetRef.current.y
           );
           dragXY.setValue({ x: left, y: top });
-          updateDropTarget(pointerX, pointerY);
+          updateDropTarget(left, top, pointerX, pointerY);
         },
         onPanResponderRelease: () => {
           void handleDrop();
@@ -377,21 +404,12 @@ export default function HomeScreen() {
                     setDragVisualSpan({ w: board.w, h: board.h });
                     setDragVisualScale(scale);
                     setDragIndex(index);
-                    const initial = findBestInsertion(
-                      boardGames,
-                      game.id,
-                      board.x,
-                      board.y,
-                      boardColumns,
-                      { w: board.w, h: board.h }
-                    );
-                    dropTargetKeyRef.current = `${initial.target.x}-${initial.target.y}-${initial.target.w}-${initial.target.h}-${initial.insertionIndex}`;
+                    dropTargetKeyRef.current = `${board.x}-${board.y}-${board.w}-${board.h}`;
                     setDropTarget({
-                      x: initial.target.x,
-                      y: initial.target.y,
-                      w: initial.target.w,
-                      h: initial.target.h,
-                      insertionIndex: initial.insertionIndex,
+                      x: board.x,
+                      y: board.y,
+                      w: board.w,
+                      h: board.h,
                     });
                   }}
                   delayLongPress={220}

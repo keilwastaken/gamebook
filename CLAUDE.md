@@ -1,163 +1,65 @@
-# Gamebook - Claude Guidelines
+# Gamebook - Guidelines
+
+> This file is the source of truth for all agents (Cursor, Claude, Codex, etc.)
+> and human contributors. `AGENTS.md` and `.cursorrules` point here.
+> Detailed topic docs live in `docs/`.
 
 ## Product Vision
 
-Gamebook is a cozy companion app for tracking and celebrating your gaming journey. It's designed for people who love games as a form of relaxation, comfort, and joy — not competition.
-
-## Target Audience: Cozy Gamers
-
-Our users are:
-- People who play games to unwind, not to compete
-- Fans of cozy, wholesome, and indie games (Stardew Valley, Animal Crossing, Spiritfarer, etc.)
-- Players who value the journey over achievements
-- People who appreciate warm, inviting digital spaces
+Gamebook is a cozy companion app for tracking and celebrating your gaming
+journey. Designed for comfort and delight, not competition.
 
 **Design for comfort, not efficiency. Design for delight, not metrics.**
 
----
+## Quick Reference
 
-## Cozy UI Design Philosophy
+| Topic | Location |
+|-------|----------|
+| Architecture & directory layout | [docs/architecture.md](docs/architecture.md) |
+| Testing strategy (unit, component, E2E) | [docs/testing-strategy.md](docs/testing-strategy.md) |
+| CI gates & pass criteria | [docs/ci-gates.md](docs/ci-gates.md) |
+| Execution plans | [docs/exec-plans/](docs/exec-plans/) |
 
-Every design decision should make users feel relaxed, comfortable, and delighted. The app should feel like a warm, inviting space — not a utility.
+## Core Rules (Always Apply)
 
-### 1. Color Palette: Warm & Earthy Tones
-- Use soft sage for accents (active states, highlights)
-- Use cream for backgrounds
-- Create gentle, low-contrast environments that are easy on the eyes
-- These colors evoke comfort, tranquility, and warmth — like a soft blanket or a cup of tea
+1. **Colors from palette only** — all colors come from `constants/palette.ts`
+   via Tailwind classes or `constants/theme.ts`. No hardcoded hex values.
+2. **Dark mode** — use NativeWind `dark:` modifiers (e.g. `bg-cream dark:bg-cream-dark`).
+3. **Imports** — use `@/` path alias; order: React Native, Expo, local.
+4. **Naming** — files: kebab-case, components: PascalCase, functions/vars: camelCase.
+5. **Icons** — `phosphor-react-native`; active: `weight="fill"`, inactive: `weight="regular"`.
+6. **Animations** — spring-based squish & bounce; see pattern in `components/tab-bar/tab-button.tsx`.
+7. **Tests required** — every component change should have or update a colocated test.
+8. **Run harness before PR** — `pnpm test && pnpm typecheck && pnpm lint`.
 
-### 2. Shape & Form: Organic & Rounded
-- Eliminate sharp edges wherever possible
-- Use pill-shaped indicators, rounded buttons, gentle curves
-- The center tab bar divot should feel like a hammock, not a geometric notch
-- Rounded shapes feel safer, friendlier, and more organic — like pebbles or leaves
+## Cozy UI Design Principles
 
-### 3. Typography: Soft & Friendly
-- Use Nunito (configured in tailwind.config.js) for a rounded, friendly feel
-- Prefer slightly bolder weights for clarity without sacrificing softness
-- Avoid sharp, condensed fonts that feel corporate
+- Warm & earthy tones (sage, cream, warm, clay).
+- Organic & rounded shapes — no sharp edges.
+- Soft typography (Nunito, slightly bold).
+- Subtle spring animations on interactive elements.
+- Warm, diffused shadows (sage-tinted, not black).
 
-### 4. Iconography: Simple & Clear
-- Use Phosphor icons (phosphor-react-native) — they have a friendly, rounded aesthetic
-- Active states use `weight="fill"` (solid, satisfying)
-- Inactive states use `weight="regular"` (clean outline)
-- Clarity is comforting — users should never guess what an icon does
+## Visual UI Verification Workflow
 
-### 5. Animation: Subtle & Playful
-- Add gentle "squish and bounce" on interactive elements
-- Animations should be quick and subtle — providing life without distraction
-- Use React Native Animated with spring physics for organic feel
-- Example pattern: scale to 0.85-0.88 on press, bounce back with `bounciness: 12`
+When building, modifying, or fixing a React Native UI component, use the
+`capture-ui.sh` script to verify your work visually. Screenshots are saved
+to `.screenshots/` (gitignored).
 
-### 6. Shadows & Depth: Soft & Diffused
-- Use warm, sage-tinted shadows instead of harsh black
-- Shadows should feel like soft glows, not hard edges
-- Add slight transparency to elevated elements for a plush feel
-
----
-
-## Technical Conventions
-
-### Project Overview
-React Native project using Expo Router v6 with TypeScript and NativeWind for styling. File-based routing with a custom theme system supporting light/dark modes.
-
-### Development Commands
-```bash
-npm start          # Start Expo development server
-npm run android    # Start on Android emulator
-npm run ios        # Start on iOS simulator
-npm run web        # Start web version
-npm run lint       # Run ESLint
-```
-
-### Import Organization
-```typescript
-// React Native imports first
-import { StyleSheet, Text, type TextProps } from 'react-native';
-
-// Expo imports next
-import { Stack } from 'expo-router';
-
-// Local imports using @/ path alias
-import { useThemeColor } from '@/hooks/use-theme-color';
-```
-
-### Naming Conventions
-- **Components**: PascalCase (`ThemedText`, `TabButton`)
-- **Files**: kebab-case (`themed-text.tsx`, `tab-bar.tsx`)
-- **Functions/Variables**: camelCase
-- **Types/Interfaces**: PascalCase
-
-### Theme System & Color Usage
-
-**CRITICAL**: ALL colors MUST come from tailwind.config.js - NO hardcoded colors allowed
-
-**Palette** (from `constants/palette.ts`):
-- **Cream**: `cream`, `cream-dark` — Backgrounds
-- **Sage**: `sage-{50-700}` — Primary/Text/Accents
-- **Warm**: `warm-{50-600}` — Cards/Secondary accents
-- **UI**: `heart`, `icon`
-
-**Dark Mode**: Use NativeWind modifiers (e.g., `bg-cream dark:bg-cream-dark`)
-
-**Prohibited**: Never use literal hex colors (e.g., `bg-[#F5F0E8]`) or default Tailwind colors
-
-### Component Patterns
-- Functional components with TypeScript interfaces
-- Use prop spreading (`...rest`, `...otherProps`)
-- Extract animated/interactive elements into their own components (e.g., `TabButton`, `CenterButton`)
-
-### Animation Patterns
-```typescript
-// Squish & bounce pattern for interactive elements
-const scaleAnim = useRef(new Animated.Value(1)).current;
-
-const handlePressIn = () => {
-  Animated.spring(scaleAnim, {
-    toValue: 0.85,
-    useNativeDriver: true,
-    speed: 50,
-    bounciness: 4,
-  }).start();
-};
-
-const handlePressOut = () => {
-  Animated.spring(scaleAnim, {
-    toValue: 1,
-    useNativeDriver: true,
-    speed: 20,
-    bounciness: 12,
-  }).start();
-};
-```
-
-### File Structure
-```
-app/                 # File-based routing (screens)
-├── (tabs)/         # Tab navigation group
-├── _layout.tsx     # Root layout
-components/         # Reusable UI components
-├── ui/            # UI-specific components
-constants/         # Palette, theme, app constants
-hooks/             # Custom React hooks
-assets/            # Static assets
-```
-
-### Icon Usage
-- Use `phosphor-react-native` for all icons
-- Active/selected: `weight="fill"`
-- Inactive/default: `weight="regular"`
-- Emphasized actions: `weight="bold"`
-
----
+1. **Observe Before:** Run `./capture-ui.sh pre_edit` to capture the baseline.
+   Analyze `.screenshots/pre_edit.png` to understand the current state.
+2. **Execute:** Write or modify the React Native code to fulfill the requirement.
+3. **Wait for Fast Refresh:** Wait 3 seconds for Metro to hot-reload.
+4. **Observe After:** Run `./capture-ui.sh post_edit` to capture the new state.
+5. **Verify:** Analyze `.screenshots/post_edit.png`. Did the layout change as
+   expected? Are shadows, rotations, and margins correct? If not, adjust code
+   and repeat steps 3-5.
 
 ## Working with this Codebase
 
-1. **Design with coziness in mind** — every element should feel warm and inviting
-2. **Use the established palette** — sage, cream, warm tones only
-3. **Add subtle animations** — make interactions feel alive
-4. **Round the edges** — literally and figuratively
-5. **Test in both light and dark modes**
-6. **Use `@/` path aliases** for internal imports
-
-Remember: This app is a cozy retreat. Every pixel should feel like a warm hug.
+1. Read `docs/architecture.md` for structure and dependency rules.
+2. Read `docs/testing-strategy.md` before writing tests.
+3. Check `docs/exec-plans/` for in-flight work to avoid conflicts.
+4. Use `capture-ui.sh` to visually verify UI changes.
+5. Test in both light and dark modes.
+6. Every pixel should feel like a warm hug.

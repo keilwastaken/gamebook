@@ -5,6 +5,7 @@ import { ThemedText } from "@/components/themed-text";
 export default function AddScreen() {
   return (
     <View
+      testID="screen-add"
       style={{
         flex: 1,
         alignItems: "center",

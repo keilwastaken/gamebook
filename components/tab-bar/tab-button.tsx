@@ -46,6 +46,7 @@ export function TabButton({
 
   return (
     <Pressable
+      testID={`tab-${tab.name}`}
       onPress={onPress}
       onPressIn={handlePressIn}
       onPressOut={handlePressOut}

@@ -57,6 +57,7 @@ export function CenterButton({ size, onPress }: CenterButtonProps) {
       }}
     >
       <Pressable
+        testID="center-button-add"
         onPress={onPress}
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}

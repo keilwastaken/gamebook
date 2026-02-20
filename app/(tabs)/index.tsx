@@ -21,7 +21,13 @@ import {
 } from "@/components/cards";
 import { JournalOverlay } from "@/components/journal-overlay";
 import { useGamesContext } from "@/lib/games-context";
-import { applyBoardLayout, findBestInsertion } from "@/lib/board-layout";
+import {
+  applyBoardLayout,
+  constrainSpanForCard,
+  findBestInsertion,
+  getAxisIntentSpan,
+  getCardSpan,
+} from "@/lib/board-layout";
 import { DEFAULT_TICKET_TYPE, type Game, type TicketType } from "@/lib/types";
 
 const BOARD_GAP = 8;
@@ -37,8 +43,12 @@ export default function HomeScreen() {
   const { playingGames, loading, saveNote, reorderGame } = useGamesContext();
   const [activeGame, setActiveGame] = useState<Game | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
-  const [dragSpan, setDragSpan] = useState<{ w: number; h: number }>({ w: 1, h: 1 });
-  const [dragScale, setDragScale] = useState(1);
+  const [, setDragSpan] = useState<{ w: number; h: number }>({ w: 1, h: 1 });
+  const [dragVisualSpan, setDragVisualSpan] = useState<{ w: number; h: number }>({
+    w: 1,
+    h: 1,
+  });
+  const [dragVisualScale, setDragVisualScale] = useState(1);
   const [dragIndex, setDragIndex] = useState(0);
   const [dropTarget, setDropTarget] = useState<{
     x: number;
@@ -48,10 +58,12 @@ export default function HomeScreen() {
     insertionIndex: number;
   } | null>(null);
   const consumeNextPress = useRef(false);
+  const dragSpanRef = useRef<{ w: number; h: number }>({ w: 1, h: 1 });
+  const pendingSpanRef = useRef<{ w: number; h: number } | null>(null);
+  const pendingSpanAtRef = useRef(0);
   const boardRef = useRef<View>(null);
   const boardOriginRef = useRef({ x: 0, y: 0 });
   const dragOffsetRef = useRef({ x: 0, y: 0 });
-  const dragPositionRef = useRef({ left: 0, top: 0 });
   const dropTargetKeyRef = useRef("");
   const dragXY = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
   const { width } = useWindowDimensions();
@@ -79,8 +91,54 @@ export default function HomeScreen() {
   );
   const boardHeight =
     visibleRows > 0 ? visibleRows * rowHeight + (visibleRows - 1) * BOARD_GAP : 0;
-  const dragSlotWidth = dragSpan.w * cellWidth + (dragSpan.w - 1) * BOARD_GAP;
-  const dragSlotHeight = dragSpan.h * rowHeight + (dragSpan.h - 1) * BOARD_GAP;
+  const dragSlotWidth =
+    dragVisualSpan.w * cellWidth + (dragVisualSpan.w - 1) * BOARD_GAP;
+  const dragSlotHeight =
+    dragVisualSpan.h * rowHeight + (dragVisualSpan.h - 1) * BOARD_GAP;
+
+  const getCardRenderScale = useCallback(
+    (ticketType: TicketType) => {
+      const baseSize = BASE_CARD_SIZE[ticketType];
+      const defaultSpan = getCardSpan(ticketType);
+      const getScaleForSpan = (w: number, h: number) =>
+        Math.min(
+          (w * cellWidth + (w - 1) * BOARD_GAP - 2) / baseSize.width,
+          (h * rowHeight + (h - 1) * BOARD_GAP - 2) / baseSize.height
+        );
+
+      const defaultScale = getScaleForSpan(defaultSpan.w, defaultSpan.h);
+      if (ticketType === "polaroid") {
+        const swappedScale = getScaleForSpan(defaultSpan.h, defaultSpan.w);
+        return Math.min(defaultScale, swappedScale);
+      }
+      return defaultScale;
+    },
+    [cellWidth, rowHeight]
+  );
+
+  const maybeApplyDragSpan = useCallback((candidate: { w: number; h: number }) => {
+    const current = dragSpanRef.current;
+    if (candidate.w === current.w && candidate.h === current.h) {
+      pendingSpanRef.current = null;
+      return current;
+    }
+
+    const now = Date.now();
+    const pending = pendingSpanRef.current;
+    if (pending && pending.w === candidate.w && pending.h === candidate.h) {
+      if (now - pendingSpanAtRef.current >= 120) {
+        dragSpanRef.current = candidate;
+        setDragSpan(candidate);
+        pendingSpanRef.current = null;
+        return candidate;
+      }
+      return current;
+    }
+
+    pendingSpanRef.current = candidate;
+    pendingSpanAtRef.current = now;
+    return current;
+  }, []);
 
   const handleAddNote = useCallback(
     (gameId: string) => {
@@ -106,27 +164,52 @@ export default function HomeScreen() {
   const stopDragging = useCallback(() => {
     setDraggingId(null);
     setDragSpan({ w: 1, h: 1 });
+    setDragVisualSpan({ w: 1, h: 1 });
+    setDragVisualScale(1);
+    dragSpanRef.current = { w: 1, h: 1 };
+    pendingSpanRef.current = null;
+    pendingSpanAtRef.current = 0;
     setDropTarget(null);
     dropTargetKeyRef.current = "";
   }, []);
 
   const updateDropTarget = useCallback(
-    (left: number, top: number) => {
+    (pointerX: number, pointerY: number) => {
       if (!draggingId) return;
+      const moving = boardGames.find((game) => game.id === draggingId);
+      const ticketType = moving?.ticketType ?? DEFAULT_TICKET_TYPE;
+      const desiredSpan = {
+        w: Math.max(
+          1,
+          Math.min(
+            boardColumns,
+            getAxisIntentSpan(pointerX, cellWidth + BOARD_GAP, boardColumns)
+          )
+        ),
+        h: Math.max(1, getAxisIntentSpan(pointerY, rowHeight + BOARD_GAP)),
+      };
+      const constrained = constrainSpanForCard(ticketType, desiredSpan, boardColumns);
+      const span = maybeApplyDragSpan(constrained);
+      const strideX = cellWidth + BOARD_GAP;
+      const strideY = rowHeight + BOARD_GAP;
       const clampedX = Math.max(
         0,
-        Math.min(boardColumns - dragSpan.w, Math.round(left / (cellWidth + BOARD_GAP)))
+        Math.min(
+          boardColumns - span.w,
+          Math.round(pointerX / strideX - span.w / 2)
+        )
       );
       const clampedY = Math.max(
         0,
-        Math.round(top / (rowHeight + BOARD_GAP))
+        Math.round(pointerY / strideY - span.h / 2)
       );
       const result = findBestInsertion(
         boardGames,
         draggingId,
         clampedX,
         clampedY,
-        boardColumns
+        boardColumns,
+        span
       );
       const key = `${result.target.x}-${result.target.y}-${result.target.w}-${result.target.h}-${result.insertionIndex}`;
       if (key !== dropTargetKeyRef.current) {
@@ -140,12 +223,22 @@ export default function HomeScreen() {
         });
       }
     },
-    [draggingId, boardGames, boardColumns, cellWidth, rowHeight, dragSpan.w]
+    [
+      draggingId,
+      boardGames,
+      boardColumns,
+      cellWidth,
+      rowHeight,
+      maybeApplyDragSpan,
+    ]
   );
 
   const handleDrop = useCallback(async () => {
     if (!draggingId || !dropTarget) return;
-    await reorderGame(draggingId, dropTarget.insertionIndex, boardColumns);
+    await reorderGame(draggingId, dropTarget.insertionIndex, boardColumns, {
+      w: dropTarget.w,
+      h: dropTarget.h,
+    });
     stopDragging();
   }, [
     draggingId,
@@ -163,6 +256,8 @@ export default function HomeScreen() {
         onPanResponderTerminationRequest: () => false,
         onPanResponderMove: (_evt, gestureState) => {
           if (!draggingId) return;
+          const pointerX = Math.max(0, gestureState.moveX - boardOriginRef.current.x);
+          const pointerY = Math.max(0, gestureState.moveY - boardOriginRef.current.y);
           const left = Math.max(
             0,
             gestureState.moveX - boardOriginRef.current.x - dragOffsetRef.current.x
@@ -171,9 +266,8 @@ export default function HomeScreen() {
             0,
             gestureState.moveY - boardOriginRef.current.y - dragOffsetRef.current.y
           );
-          dragPositionRef.current = { left, top };
           dragXY.setValue({ x: left, y: top });
-          updateDropTarget(left, top);
+          updateDropTarget(pointerX, pointerY);
         },
         onPanResponderRelease: () => {
           void handleDrop();
@@ -249,13 +343,9 @@ export default function HomeScreen() {
             {boardGames.map((game, index) => {
               const board = game.board ?? { x: 0, y: index, w: 1, h: 1 };
               const ticketType = game.ticketType ?? DEFAULT_TICKET_TYPE;
-              const baseSize = BASE_CARD_SIZE[ticketType];
               const slotWidth = board.w * cellWidth + (board.w - 1) * BOARD_GAP;
               const slotHeight = board.h * rowHeight + (board.h - 1) * BOARD_GAP;
-              const scale = Math.min(
-                (slotWidth - 2) / baseSize.width,
-                (slotHeight - 2) / baseSize.height
-              );
+              const scale = getCardRenderScale(ticketType);
               const slotLeft = board.x * (cellWidth + BOARD_GAP);
               const slotTop = board.y * (rowHeight + BOARD_GAP);
               const isDragging = draggingId === game.id;
@@ -278,18 +368,22 @@ export default function HomeScreen() {
                       boardOriginRef.current = { x, y };
                     });
                     dragOffsetRef.current = { x: locationX, y: locationY };
-                    dragPositionRef.current = { left: slotLeft, top: slotTop };
                     dragXY.setValue({ x: slotLeft, y: slotTop });
                     setDraggingId(game.id);
+                    dragSpanRef.current = { w: board.w, h: board.h };
+                    pendingSpanRef.current = null;
+                    pendingSpanAtRef.current = 0;
                     setDragSpan({ w: board.w, h: board.h });
-                    setDragScale(scale);
+                    setDragVisualSpan({ w: board.w, h: board.h });
+                    setDragVisualScale(scale);
                     setDragIndex(index);
                     const initial = findBestInsertion(
                       boardGames,
                       game.id,
                       board.x,
                       board.y,
-                      boardColumns
+                      boardColumns,
+                      { w: board.w, h: board.h }
                     );
                     dropTargetKeyRef.current = `${initial.target.x}-${initial.target.y}-${initial.target.w}-${initial.target.h}-${initial.insertionIndex}`;
                     setDropTarget({
@@ -379,7 +473,9 @@ export default function HomeScreen() {
                 ]}
               >
                 <View style={styles.slotCenter}>
-                  <View style={{ transform: [{ scale: dragScale }, { rotate: "0.8deg" }] }}>
+                  <View
+                    style={{ transform: [{ scale: dragVisualScale }, { rotate: "0.8deg" }] }}
+                  >
                     {renderCardVisual(draggingGame, dragIndex)}
                   </View>
                 </View>

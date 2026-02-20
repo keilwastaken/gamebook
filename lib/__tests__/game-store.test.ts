@@ -298,4 +298,24 @@ describe("useGames", () => {
     expect(result.current.games[0].board?.x).toBe(0);
     expect(result.current.games[0].board?.y).toBe(0);
   });
+
+  it("reorderGame applies span override so moved card can occupy more slots", async () => {
+    const stored = [
+      { id: "g1", title: "One", status: "playing", ticketType: "ticket", notes: [] },
+      { id: "g2", title: "Two", status: "playing", ticketType: "minimal", notes: [] },
+      { id: "g3", title: "Three", status: "playing", ticketType: "widget", notes: [] },
+    ];
+    mockGetItem.mockResolvedValue(JSON.stringify(stored));
+
+    const { result } = renderHook(() => useGames());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => {
+      await result.current.reorderGame!("g2", 0, 4, { w: 2, h: 2 });
+    });
+
+    const moved = result.current.games.find((game) => game.id === "g2");
+    expect(moved?.board).toMatchObject({ x: 0, y: 0, w: 2, h: 2, columns: 4 });
+    expect(mockSetItem).toHaveBeenCalled();
+  });
 });

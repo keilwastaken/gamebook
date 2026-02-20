@@ -227,15 +227,27 @@ export function useGames() {
     async (
       gameId: string,
       toIndex: number,
-      columns: number = DEFAULT_BOARD_COLUMNS
+      columns: number = DEFAULT_BOARD_COLUMNS,
+      spanOverride?: { w: number; h: number }
     ): Promise<void> => {
       setGames((prev) => {
         const fromIndex = prev.findIndex((game) => game.id === gameId);
         if (fromIndex === -1) return prev;
         const ordered = [...prev];
         const [moved] = ordered.splice(fromIndex, 1);
+        const movedWithSpan = spanOverride
+          ? {
+              ...moved,
+              board: {
+                ...(moved.board ?? { x: 0, y: 0, columns }),
+                w: spanOverride.w,
+                h: spanOverride.h,
+                columns,
+              },
+            }
+          : moved;
         const clampedIndex = Math.max(0, Math.min(toIndex, ordered.length));
-        ordered.splice(clampedIndex, 0, moved);
+        ordered.splice(clampedIndex, 0, movedWithSpan);
         const next = applyBoardLayout(ordered, columns);
         persistGames(next);
         return next;

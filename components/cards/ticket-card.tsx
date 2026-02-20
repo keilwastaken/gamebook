@@ -12,6 +12,7 @@ import {
 import { palette } from "@/constants/palette";
 import { CozyShadows } from "@/utils/shadows";
 import type { Game } from "@/lib/types";
+import { MountAdornment } from "./mount-adornment";
 import { randomRotation } from "./types";
 
 export interface TicketCardProps {
@@ -64,13 +65,6 @@ export function TicketCard({
   const cardContent = (
     <View style={[styles.card, CozyShadows.base]}>
       <View style={styles.stub}>
-        <View
-          style={[
-            styles.pin,
-            { backgroundColor: palette.clay[500] },
-            CozyShadows.micro,
-          ]}
-        />
         <Text style={styles.admitOne}>ADMIT ONE</Text>
       </View>
       <View style={styles.perforationHoleTop} />
@@ -110,6 +104,7 @@ export function TicketCard({
       style={[styles.wrapper, { transform: [{ rotate: `${rotation}deg` }] }]}
       testID={`playing-card-${game.id}`}
     >
+      <MountAdornment mountStyle={game.mountStyle} />
       {onPress ? (
         <Pressable
           onPress={handlePress}
@@ -135,6 +130,7 @@ export function TicketCard({
 const styles = StyleSheet.create({
   wrapper: {
     alignSelf: "flex-start",
+    paddingTop: 10,
     marginBottom: 16,
   },
   pressableInner: {
@@ -158,16 +154,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     position: "relative",
-  },
-  pin: {
-    position: "absolute",
-    top: -6,
-    left: "50%",
-    marginLeft: -6,
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    zIndex: 2,
   },
   admitOne: {
     fontSize: 8,

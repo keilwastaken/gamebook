@@ -9,6 +9,7 @@ import {
 import { palette } from "@/constants/palette";
 import { CozyShadows } from "@/utils/shadows";
 import type { GameCardData } from "./types";
+import { MountAdornment } from "./mount-adornment";
 
 export interface MinimalCardProps {
   game: GameCardData;
@@ -31,7 +32,7 @@ export function MinimalCard({
 
   return (
     <View style={[styles.wrapper, { transform: [{ rotate: `${rotation}deg` }] }]}>
-      <View style={styles.clip} />
+      <MountAdornment mountStyle={game.mountStyle} />
       <View
         style={[
           styles.card,
@@ -62,17 +63,7 @@ export function MinimalCard({
 const styles = StyleSheet.create({
   wrapper: {
     alignSelf: "flex-start",
-    paddingTop: 6,
-  },
-  clip: {
-    position: "absolute",
-    top: 0,
-    right: 16,
-    width: 18,
-    height: 10,
-    borderRadius: 3,
-    backgroundColor: palette.warm[300],
-    zIndex: 2,
+    paddingTop: 10,
   },
   card: {
     flexDirection: "row",

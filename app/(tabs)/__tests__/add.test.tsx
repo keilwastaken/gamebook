@@ -30,10 +30,14 @@ function AddScreenWithProvider() {
   );
 }
 
+async function renderAddScreen() {
+  render(<AddScreenWithProvider />);
+  await waitFor(() => expect(screen.getByTestId("screen-add")).toBeTruthy());
+}
+
 describe("AddScreen", () => {
   it("renders add form with required fields", async () => {
-    const { getByTestId } = render(<AddScreenWithProvider />);
-    await waitFor(() => expect(getByTestId("screen-add")).toBeTruthy());
+    await renderAddScreen();
 
     expect(screen.getByTestId("add-title-input")).toBeTruthy();
     expect(screen.getByTestId("add-where-input")).toBeTruthy();
@@ -41,8 +45,7 @@ describe("AddScreen", () => {
   });
 
   it("disables save button when title or whereLeftOff is empty", async () => {
-    render(<AddScreenWithProvider />);
-    await waitFor(() => expect(screen.getByTestId("add-save-button")).toBeTruthy());
+    await renderAddScreen();
 
     const saveButton = screen.getByTestId("add-save-button");
     expect(saveButton.props.accessibilityState?.disabled).toBe(true);
@@ -55,8 +58,7 @@ describe("AddScreen", () => {
   });
 
   it("enables save when both title and whereLeftOff are filled", async () => {
-    render(<AddScreenWithProvider />);
-    await waitFor(() => expect(screen.getByTestId("add-save-button")).toBeTruthy());
+    await renderAddScreen();
 
     fireEvent.changeText(screen.getByTestId("add-title-input"), "Stardew");
     fireEvent.changeText(screen.getByTestId("add-where-input"), "Farming");
@@ -66,15 +68,12 @@ describe("AddScreen", () => {
   });
 
   it("renders optional quick thought", async () => {
-    render(<AddScreenWithProvider />);
-    await waitFor(() => expect(screen.getByTestId("add-thought-input")).toBeTruthy());
+    await renderAddScreen();
+    expect(screen.getByTestId("add-thought-input")).toBeTruthy();
   });
 
   it("shows ticket type choices with polaroid selected by default", async () => {
-    render(<AddScreenWithProvider />);
-    await waitFor(() =>
-      expect(screen.getByTestId("add-ticket-type-polaroid")).toBeTruthy()
-    );
+    await renderAddScreen();
 
     expect(
       screen.getByTestId("add-ticket-type-polaroid").props.accessibilityState?.selected
@@ -85,19 +84,30 @@ describe("AddScreen", () => {
     expect(screen.getByTestId("add-ticket-type-minimal")).toBeTruthy();
   });
 
-  it("shows mount style choices for polaroid and hides them for other ticket types", async () => {
-    render(<AddScreenWithProvider />);
-    await waitFor(() =>
-      expect(screen.getByTestId("add-mount-style-tape")).toBeTruthy()
-    );
+  it("shows mount style choices for all ticket types", async () => {
+    await renderAddScreen();
 
     expect(
       screen.getByTestId("add-mount-style-tape").props.accessibilityState?.selected
     ).toBe(true);
     expect(screen.getByTestId("add-mount-style-color-pin")).toBeTruthy();
     expect(screen.getByTestId("add-mount-style-metal-pin")).toBeTruthy();
-
     fireEvent.press(screen.getByTestId("add-ticket-type-postcard"));
-    expect(screen.queryByTestId("add-mount-style-tape")).toBeNull();
+    expect(screen.getByTestId("add-mount-style-tape")).toBeTruthy();
+  });
+
+  it("shows postcard side options only for postcard", async () => {
+    await renderAddScreen();
+
+    expect(screen.queryByTestId("add-postcard-side-front")).toBeNull();
+    fireEvent.press(screen.getByTestId("add-ticket-type-postcard"));
+    expect(screen.getByTestId("add-postcard-side-front")).toBeTruthy();
+    expect(screen.getByTestId("add-postcard-side-back")).toBeTruthy();
+    expect(
+      screen.getByTestId("add-postcard-side-front").props.accessibilityState?.selected
+    ).toBe(true);
+
+    fireEvent.press(screen.getByTestId("add-ticket-type-ticket"));
+    expect(screen.queryByTestId("add-postcard-side-front")).toBeNull();
   });
 });

@@ -10,6 +10,7 @@ import {
 import { palette } from "@/constants/palette";
 import { CozyShadows } from "@/utils/shadows";
 import type { GameCardData } from "./types";
+import { MountAdornment } from "./mount-adornment";
 import { randomRotation } from "./types";
 
 export interface PolaroidCardProps {
@@ -34,32 +35,11 @@ export function PolaroidCard({
   const imageSource = game.imageUri
     ? { uri: game.imageUri }
     : { uri: PLACEHOLDER_IMAGE };
-  const mountStyle = game.mountStyle ?? "tape";
-  const pinColor =
-    mountStyle === "metal-pin"
-      ? palette.warm[300]
-      : seed % 4 === 0
-        ? palette.sage[500]
-        : palette.clay[500];
   const handwrittenTilt = seed % 2 === 0;
 
   return (
     <View style={[styles.wrapper, { transform: [{ rotate: `${rotation}deg` }] }]}>
-      {mountStyle === "tape" ? (
-        <View style={styles.tape} />
-      ) : (
-        <View style={styles.pinWrap}>
-          <View
-            style={[
-              styles.pinHead,
-              mountStyle === "metal-pin" ? styles.pinMetal : styles.pinColor,
-              { backgroundColor: pinColor },
-              CozyShadows.micro,
-            ]}
-          />
-          <View style={styles.pinNeedle} />
-        </View>
-      )}
+      <MountAdornment mountStyle={game.mountStyle} />
       <View style={[styles.card, CozyShadows.base, styles.cardShadow]}>
         <View style={styles.innerFrame}>
           <View style={styles.imageLip}>
@@ -108,49 +88,6 @@ const styles = StyleSheet.create({
     alignSelf: "flex-start",
     alignItems: "center",
     paddingTop: 10,
-  },
-  tape: {
-    position: "absolute",
-    width: 56,
-    height: 18,
-    backgroundColor: palette.cream.DEFAULT,
-    borderWidth: 1,
-    borderColor: palette.warm[200],
-    opacity: 0.6,
-    top: 2,
-    left: "50%",
-    marginLeft: -28,
-    zIndex: 3,
-    transform: [{ rotate: "6deg" }],
-  },
-  pinWrap: {
-    position: "absolute",
-    top: 0,
-    left: "50%",
-    marginLeft: -8,
-    zIndex: 3,
-    alignItems: "center",
-  },
-  pinHead: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-  },
-  pinColor: {
-    borderWidth: 1,
-    borderColor: palette.warm[100],
-  },
-  pinMetal: {
-    borderWidth: 1,
-    borderColor: palette.warm[200],
-  },
-  pinNeedle: {
-    width: 2,
-    height: 10,
-    backgroundColor: palette.warm[300],
-    marginTop: -2,
-    borderRadius: 1,
-    opacity: 0.8,
   },
   card: {
     backgroundColor: palette.warm[50],

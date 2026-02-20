@@ -10,6 +10,7 @@ import {
 import { palette } from "@/constants/palette";
 import { CozyShadows } from "@/utils/shadows";
 import type { GameCardData } from "./types";
+import { MountAdornment } from "./mount-adornment";
 import { randomRotation } from "./types";
 
 export interface WidgetCardProps {
@@ -36,15 +37,7 @@ export function WidgetCard({
 
   return (
     <View style={[styles.wrapper, { transform: [{ rotate: `${rotation}deg` }] }]}>
-      <View style={styles.pinContainer}>
-        <View
-          style={[
-            styles.pin,
-            { backgroundColor: palette.sage[500] },
-            CozyShadows.micro,
-          ]}
-        />
-      </View>
+      <MountAdornment mountStyle={game.mountStyle} />
       <View style={[styles.card, CozyShadows.liftedBottom]}>
         <View style={styles.foldCorner} />
         <Text style={styles.header}>Playing...</Text>
@@ -76,17 +69,7 @@ const styles = StyleSheet.create({
   wrapper: {
     alignSelf: "flex-start",
     alignItems: "flex-end",
-  },
-  pinContainer: {
-    position: "absolute",
-    top: -6,
-    right: 16,
-    zIndex: 2,
-  },
-  pin: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
+    paddingTop: 10,
   },
   card: {
     backgroundColor: palette.warm[100],

@@ -24,12 +24,21 @@ export default function HomeScreen() {
   const { playingGames, loading, saveNote } = useGamesContext();
   const [activeGame, setActiveGame] = useState<Game | null>(null);
 
+  const dashboardGames = playingGames.filter(
+    (game, index, list) =>
+      list.findIndex(
+        (candidate) =>
+          (candidate.ticketType ?? DEFAULT_TICKET_TYPE) ===
+          (game.ticketType ?? DEFAULT_TICKET_TYPE)
+      ) === index
+  );
+
   const handleAddNote = useCallback(
     (gameId: string) => {
-      const game = playingGames.find((g) => g.id === gameId);
+      const game = dashboardGames.find((g) => g.id === gameId);
       if (game) setActiveGame(game);
     },
-    [playingGames]
+    [dashboardGames]
   );
 
   const handleSaveNote = useCallback(
@@ -51,6 +60,8 @@ export default function HomeScreen() {
       const cardData = {
         ...game,
         notePreview: game.lastNote?.whereLeftOff,
+        mountStyle: game.mountStyle,
+        postcardSide: game.postcardSide,
       };
       const baseProps = { game: cardData, seed: index + 1 };
 
@@ -105,7 +116,7 @@ export default function HomeScreen() {
           <Text style={styles.subtitle}>
             {loading
               ? "Loading..."
-              : `${playingGames.length} game${playingGames.length !== 1 ? "s" : ""}`}
+              : `${dashboardGames.length} game${dashboardGames.length !== 1 ? "s" : ""}`}
           </Text>
         </View>
 
@@ -113,7 +124,7 @@ export default function HomeScreen() {
           <View style={styles.loadingContainer}>
             <ActivityIndicator color={palette.sage[400]} size="large" />
           </View>
-        ) : playingGames.length === 0 ? (
+        ) : dashboardGames.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyText}>
               No games pinned yet.{"\n"}Add one to start your journey!
@@ -121,7 +132,7 @@ export default function HomeScreen() {
           </View>
         ) : (
           <View style={styles.ticketGrid}>
-            {playingGames.map((game, index) => renderCard(game, index))}
+            {dashboardGames.map((game, index) => renderCard(game, index))}
           </View>
         )}
       </ScrollView>

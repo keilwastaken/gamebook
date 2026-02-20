@@ -1,7 +1,11 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { renderHook, act, waitFor } from "@testing-library/react-native";
 import { useGames } from "../game-store";
-import { DEFAULT_CARD_MOUNT_STYLE, DEFAULT_TICKET_TYPE } from "../types";
+import {
+  DEFAULT_CARD_MOUNT_STYLE,
+  DEFAULT_POSTCARD_SIDE,
+  DEFAULT_TICKET_TYPE,
+} from "../types";
 
 jest.mock("@react-native-async-storage/async-storage", () => ({
   getItem: jest.fn(),
@@ -50,6 +54,7 @@ describe("useGames", () => {
       ...stored[0],
       ticketType: DEFAULT_TICKET_TYPE,
       mountStyle: DEFAULT_CARD_MOUNT_STYLE,
+      postcardSide: DEFAULT_POSTCARD_SIDE,
     });
     expect(result.current.playingGames.length).toBe(1);
   });
@@ -115,6 +120,7 @@ describe("useGames", () => {
     expect(game.status).toBe("playing");
     expect(game.ticketType).toBe(DEFAULT_TICKET_TYPE);
     expect(game.mountStyle).toBe(DEFAULT_CARD_MOUNT_STYLE);
+    expect(game.postcardSide).toBe(DEFAULT_POSTCARD_SIDE);
     expect(game.lastNote?.whereLeftOff).toBe("Just started");
     expect(game.lastNote?.quickThought).toBe("Excited");
     expect(game.notes.length).toBe(1);
@@ -145,5 +151,6 @@ describe("useGames", () => {
     expect(added.lastNote.whereLeftOff).toBe("Mid game");
     expect(added.ticketType).toBe(DEFAULT_TICKET_TYPE);
     expect(added.mountStyle).toBe(DEFAULT_CARD_MOUNT_STYLE);
+    expect(added.postcardSide).toBe(DEFAULT_POSTCARD_SIDE);
   });
 });

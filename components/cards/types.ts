@@ -5,6 +5,7 @@ export interface GameCardData {
   playtime?: string;
   notePreview?: string;
   mountStyle?: "tape" | "color-pin" | "metal-pin";
+  postcardSide?: "front" | "back";
 }
 
 const ROTATION_MIN = -2;

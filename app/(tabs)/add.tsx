@@ -29,8 +29,10 @@ import { CozyShadows } from "@/utils/shadows";
 import { useGamesContext } from "@/lib/games-context";
 import {
   DEFAULT_CARD_MOUNT_STYLE,
+  DEFAULT_POSTCARD_SIDE,
   DEFAULT_TICKET_TYPE,
   type CardMountStyle,
+  type PostcardSide,
   type TicketType,
 } from "@/lib/types";
 
@@ -56,6 +58,11 @@ const MOUNT_STYLE_OPTIONS: Array<{
   { id: "metal-pin", label: "Steel", Icon: CircleIcon },
 ];
 
+const POSTCARD_SIDE_OPTIONS: Array<{ id: PostcardSide; label: string }> = [
+  { id: "front", label: "Front" },
+  { id: "back", label: "Back" },
+];
+
 export default function AddScreen() {
   const router = useRouter();
   const { addGameWithInitialNote } = useGamesContext();
@@ -65,6 +72,9 @@ export default function AddScreen() {
   const [ticketType, setTicketType] = useState<TicketType>(DEFAULT_TICKET_TYPE);
   const [mountStyle, setMountStyle] = useState<CardMountStyle>(
     DEFAULT_CARD_MOUNT_STYLE
+  );
+  const [postcardSide, setPostcardSide] = useState<PostcardSide>(
+    DEFAULT_POSTCARD_SIDE
   );
   const [saving, setSaving] = useState(false);
 
@@ -82,6 +92,7 @@ export default function AddScreen() {
       quickThought: quickThought.trim() || undefined,
       ticketType,
       mountStyle,
+      postcardSide,
     });
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setSaving(false);
@@ -181,30 +192,59 @@ export default function AddScreen() {
               );
             })}
           </View>
-          {ticketType === "polaroid" ? (
+          <Text style={styles.sectionLabel}>MOUNT STYLE</Text>
+          <View style={styles.ticketTypeRow}>
+            {MOUNT_STYLE_OPTIONS.map(({ id, label, Icon }) => {
+              const selected = id === mountStyle;
+              return (
+                <Pressable
+                  key={id}
+                  testID={`add-mount-style-${id}`}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Select ${label} mount style`}
+                  accessibilityState={{ selected }}
+                  onPress={() => setMountStyle(id)}
+                  style={[
+                    styles.ticketTypeButton,
+                    selected && styles.ticketTypeButtonSelected,
+                  ]}
+                >
+                  <Icon
+                    size={18}
+                    color={selected ? palette.cream.DEFAULT : palette.sage[500]}
+                    weight={selected ? "fill" : "regular"}
+                  />
+                </Pressable>
+              );
+            })}
+          </View>
+          {ticketType === "postcard" ? (
             <>
-              <Text style={styles.sectionLabel}>MOUNT STYLE</Text>
+              <Text style={styles.sectionLabel}>POSTCARD SIDE</Text>
               <View style={styles.ticketTypeRow}>
-                {MOUNT_STYLE_OPTIONS.map(({ id, label, Icon }) => {
-                  const selected = id === mountStyle;
+                {POSTCARD_SIDE_OPTIONS.map(({ id, label }) => {
+                  const selected = id === postcardSide;
                   return (
                     <Pressable
                       key={id}
-                      testID={`add-mount-style-${id}`}
+                      testID={`add-postcard-side-${id}`}
                       accessibilityRole="button"
-                      accessibilityLabel={`Select ${label} mount style`}
+                      accessibilityLabel={`Select postcard ${label.toLowerCase()} side`}
                       accessibilityState={{ selected }}
-                      onPress={() => setMountStyle(id)}
+                      onPress={() => setPostcardSide(id)}
                       style={[
-                        styles.ticketTypeButton,
-                        selected && styles.ticketTypeButtonSelected,
+                        styles.sideButton,
+                        selected && styles.sideButtonSelected,
                       ]}
                     >
-                      <Icon
-                        size={18}
-                        color={selected ? palette.cream.DEFAULT : palette.sage[500]}
-                        weight={selected ? "fill" : "regular"}
-                      />
+                      <Text
+                        style={[
+                          styles.sideButtonText,
+                          selected && styles.sideButtonTextSelected,
+                        ]}
+                      >
+                        {label}
+                      </Text>
                     </Pressable>
                   );
                 })}
@@ -304,6 +344,30 @@ const styles = StyleSheet.create({
   ticketTypeButtonSelected: {
     backgroundColor: palette.sage[500],
     borderColor: palette.sage[500],
+  },
+  sideButton: {
+    minWidth: 74,
+    height: 34,
+    borderRadius: 17,
+    borderWidth: 1,
+    borderColor: palette.sage[300],
+    backgroundColor: palette.cream.DEFAULT,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 12,
+  },
+  sideButtonSelected: {
+    backgroundColor: palette.sage[500],
+    borderColor: palette.sage[500],
+  },
+  sideButtonText: {
+    fontSize: 12,
+    fontFamily: "Nunito",
+    fontWeight: "700",
+    color: palette.sage[500],
+  },
+  sideButtonTextSelected: {
+    color: palette.cream.DEFAULT,
   },
   saveButton: {
     backgroundColor: palette.sage[500],

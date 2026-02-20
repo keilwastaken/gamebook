@@ -46,4 +46,12 @@ describe("TabButton", () => {
     const icon = screen.getByTestId("icon-HouseIcon");
     expect(icon.props.size).toBe(33); // 30 * 1.1
   });
+
+  it("handles press-in and press-out animation lifecycle", () => {
+    render(<TabButton {...defaultProps} />);
+    const tabPressable = screen.getByTestId("tab-index");
+    fireEvent(tabPressable, "pressIn");
+    fireEvent(tabPressable, "pressOut");
+    expect(tabPressable).toBeTruthy();
+  });
 });

@@ -147,4 +147,31 @@ describe("JournalOverlay", () => {
       { x: -1, y: 0 }
     );
   });
+
+  it("infers current same-span preset from board anchor instead of defaulting to first option", () => {
+    const onSelectSize = jest.fn();
+    render(
+      <JournalOverlay
+        game={{
+          ...MOCK_GAME,
+          board: { x: 1, y: 0, w: 1, h: 1, columns: 4 },
+        }}
+        onSave={jest.fn()}
+        onClose={jest.fn()}
+        sizePresets={[
+          { id: "top-left", w: 1, h: 1, activePositions: GRID_ACTIVE_TOP_LEFT },
+          { id: "top-right", w: 1, h: 1, activePositions: GRID_ACTIVE_TOP_RIGHT },
+        ]}
+        currentSize={{ w: 1, h: 1 }}
+        onSelectSize={onSelectSize}
+      />
+    );
+
+    fireEvent.press(screen.getByTestId("journal-size-top-left"));
+
+    expect(onSelectSize).toHaveBeenCalledWith(
+      { id: "top-left", w: 1, h: 1, activePositions: GRID_ACTIVE_TOP_LEFT },
+      { x: -1, y: 0 }
+    );
+  });
 });

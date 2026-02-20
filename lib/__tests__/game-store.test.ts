@@ -493,4 +493,106 @@ describe("useGames", () => {
     expect(right?.board).toMatchObject({ x: 0, y: 0, w: 1, h: 1, columns: 4 });
     expect(mockSetItem).toHaveBeenCalled();
   });
+
+  it("reorderGame is a no-op when game id is missing", async () => {
+    const stored = [
+      { id: "g1", title: "One", status: "playing", ticketType: "ticket", notes: [] },
+    ];
+    mockGetItem.mockResolvedValue(JSON.stringify(stored));
+
+    const { result } = renderHook(() => useGames());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    mockSetItem.mockClear();
+
+    await act(async () => {
+      await result.current.reorderGame!("missing", 0, 4);
+    });
+
+    expect(result.current.games[0].id).toBe("g1");
+    expect(mockSetItem).not.toHaveBeenCalled();
+  });
+
+  it("moveGameToBoardTarget is a no-op when game id is missing", async () => {
+    const stored = [
+      { id: "g1", title: "One", status: "playing", ticketType: "ticket", notes: [] },
+    ];
+    mockGetItem.mockResolvedValue(JSON.stringify(stored));
+
+    const { result } = renderHook(() => useGames());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    mockSetItem.mockClear();
+
+    await act(async () => {
+      await result.current.moveGameToBoardTarget!("missing", { x: 1, y: 1, w: 1, h: 1 }, 4);
+    });
+
+    expect(result.current.games[0].id).toBe("g1");
+    expect(mockSetItem).not.toHaveBeenCalled();
+  });
+
+  it("cycleGameSpanPreset is a no-op when no matching game exists", async () => {
+    const stored = [
+      { id: "g1", title: "One", status: "playing", ticketType: "ticket", notes: [] },
+    ];
+    mockGetItem.mockResolvedValue(JSON.stringify(stored));
+
+    const { result } = renderHook(() => useGames());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    mockSetItem.mockClear();
+
+    await act(async () => {
+      await result.current.cycleGameSpanPreset!("missing", 4);
+    });
+
+    expect(mockSetItem).not.toHaveBeenCalled();
+  });
+
+  it("cycleGameSpanPreset is a no-op when only one preset is available", async () => {
+    const stored = [
+      {
+        id: "g1",
+        title: "Postcard",
+        status: "playing",
+        ticketType: "postcard",
+        notes: [],
+        board: { x: 0, y: 0, w: 2, h: 1, columns: 4 },
+      },
+    ];
+    mockGetItem.mockResolvedValue(JSON.stringify(stored));
+
+    const { result } = renderHook(() => useGames());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    mockSetItem.mockClear();
+
+    await act(async () => {
+      await result.current.cycleGameSpanPreset!("g1", 1);
+    });
+
+    expect(result.current.games[0].board).toMatchObject({ w: 2, h: 1, columns: 4 });
+    expect(mockSetItem).not.toHaveBeenCalled();
+  });
+
+  it("setGameSpanPreset is a no-op when game id is missing", async () => {
+    const stored = [
+      {
+        id: "g1",
+        title: "Postcard",
+        status: "playing",
+        ticketType: "postcard",
+        notes: [],
+        board: { x: 1, y: 1, w: 2, h: 1, columns: 4 },
+      },
+    ];
+    mockGetItem.mockResolvedValue(JSON.stringify(stored));
+
+    const { result } = renderHook(() => useGames());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    mockSetItem.mockClear();
+
+    await act(async () => {
+      await result.current.setGameSpanPreset!("missing", { w: 2, h: 2 }, 4);
+    });
+
+    expect(mockSetItem).not.toHaveBeenCalled();
+  });
 });

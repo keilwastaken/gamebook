@@ -29,7 +29,9 @@ journey. Designed for comfort and delight, not competition.
 4. **Naming** — files: kebab-case, components: PascalCase, functions/vars: camelCase.
 5. **Icons** — `phosphor-react-native`; active: `weight="fill"`, inactive: `weight="regular"`.
 6. **Animations** — spring-based squish & bounce; see pattern in `components/tab-bar/tab-button.tsx`.
-7. **Tests required** — every component change should have or update a colocated test.
+7. **Tests required** — every component or core-logic change should have or
+   update a colocated test, including negative boundary coverage for invalid
+   input and side-effect isolation where relevant.
 8. **Run harness before PR** — `pnpm test && pnpm typecheck && pnpm lint`.
 
 ## Cozy UI Design Principles

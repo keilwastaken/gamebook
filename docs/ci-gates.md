@@ -18,6 +18,8 @@ File: `.github/workflows/ci.yml`
 - **Lint**: zero errors (warnings allowed during ramp-up).
 - **Typecheck**: zero errors.
 - **Unit tests**: all pass, no skipped tests in CI.
+- **Boundary coverage expectation**: PRs that change core logic should include
+  explicit negative/boundary tests and module-focused coverage evidence.
 - **Docs check**: all markdown links in `docs/` resolve to existing files.
 - **E2E smoke**: all Detox specs pass on the latest iOS simulator.
 

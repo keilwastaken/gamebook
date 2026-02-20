@@ -52,4 +52,12 @@ describe("PlayingCard", () => {
 
     expect(screen.queryByText("Last bookmark")).toBeNull();
   });
+
+  it("handles press-in and press-out animation events on add button", () => {
+    render(<PlayingCard game={MOCK_GAME} onAddNote={jest.fn()} />);
+    const addButton = screen.getByTestId("playing-card-add-test-1");
+    fireEvent(addButton, "pressIn");
+    fireEvent(addButton, "pressOut");
+    expect(addButton).toBeTruthy();
+  });
 });

@@ -15,6 +15,30 @@
   press, apply the correct style tokens?
 - Mock external modules (Expo, Reanimated) in `jest.setup.ts`.
 
+## Boundary-First Contract (New Features)
+
+For new logic-heavy features, tests are treated as a contract that defines
+what agents are allowed to change.
+
+- Define both allowed behavior and forbidden behavior.
+- Always include happy-path tests and explicit negative tests for invalid
+  shapes, invalid types, and unsupported values.
+- Mock all external boundaries (storage, APIs, network, file system, time)
+  and assert only expected side effects occur.
+- Keep tests deterministic: no random assertions, no real network, and no
+  flaky timer dependence.
+- For core pure-logic modules, aim for 100% statements/branches/functions/lines.
+  If 100% is not practical, document the exact uncovered branch and reason in PR.
+
+### Boundary Checklist
+
+1. Happy path behavior is pinned.
+2. Malformed/invalid input behavior is pinned.
+3. Unknown/extra input fields are pinned (accept, normalize, or reject).
+4. Side effects are isolated and asserted.
+5. Determinism is verified across repeated runs.
+6. Coverage for touched core logic is reported in the PR.
+
 ## E2E Tests (Detox)
 
 - Located in `e2e/` at the project root.
@@ -28,6 +52,8 @@
 pnpm test              # unit + component (Jest)
 pnpm test:watch        # Jest in watch mode
 pnpm test:ci           # Jest with CI reporter + coverage
+pnpm test:ci -- lib/__tests__/board-layout.test.ts --watchman=false --collectCoverageFrom=lib/board-layout.ts
+                      # module-focused coverage check for branch-complete logic
 pnpm typecheck         # tsc --noEmit
 pnpm e2e:build:ios     # Build Detox iOS test app
 pnpm e2e:test:ios      # Run Detox E2E on iOS simulator

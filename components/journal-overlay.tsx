@@ -164,13 +164,19 @@ export function JournalOverlay({
             {onSelectSize && sizePresets.length > 0 ? (
               <View style={styles.sizeOptionsRow} testID="journal-size-options">
                 {(() => {
+                  const matchingPresets = sizePresets.filter(
+                    (candidate) =>
+                      candidate.w === currentSize?.w &&
+                      candidate.h === currentSize?.h
+                  );
                   const firstMatchingIndex = sizePresets.findIndex(
                     (candidate) =>
-                      candidate.w === currentSize?.w && candidate.h === currentSize?.h
+                      candidate.w === currentSize?.w &&
+                      candidate.h === currentSize?.h
                   );
                   const hasActiveSelectedPreset =
                     selectedPresetId !== null &&
-                    sizePresets.some((candidate) => {
+                    matchingPresets.some((candidate) => {
                       const candidateId =
                         candidate.id ?? `${candidate.w}x${candidate.h}`;
                       return (
@@ -179,8 +185,14 @@ export function JournalOverlay({
                         candidate.h === currentSize?.h
                       );
                     });
-                  const currentPreset = hasActiveSelectedPreset
-                    ? sizePresets.find((candidate) => {
+                  const inferredCurrentPreset =
+                    !hasActiveSelectedPreset && game.board
+                      ? inferPresetFromBoardAnchor(matchingPresets, game.board.x, game.board.y)
+                      : null;
+                  let currentPreset: JournalSizePreset | null = null;
+                  if (hasActiveSelectedPreset) {
+                    currentPreset =
+                      matchingPresets.find((candidate) => {
                         const candidateId =
                           candidate.id ?? `${candidate.w}x${candidate.h}`;
                         return (
@@ -188,10 +200,16 @@ export function JournalOverlay({
                           candidate.w === currentSize?.w &&
                           candidate.h === currentSize?.h
                         );
-                      }) ?? null
-                    : firstMatchingIndex >= 0
-                      ? sizePresets[firstMatchingIndex]
-                      : null;
+                      }) ??
+                      inferredCurrentPreset ??
+                      null;
+                  } else {
+                    currentPreset =
+                      inferredCurrentPreset ??
+                      (firstMatchingIndex >= 0 ? sizePresets[firstMatchingIndex] : null);
+                  }
+                  const currentPresetId =
+                    currentPreset ? currentPreset.id ?? `${currentPreset.w}x${currentPreset.h}` : null;
                   const currentAnchorOffset = getPresetAnchorOffset(currentPreset);
                   return sizePresets.map((preset, index) => {
                     const presetId = preset.id ?? `${preset.w}x${preset.h}`;
@@ -200,7 +218,9 @@ export function JournalOverlay({
                     const selected =
                       (hasActiveSelectedPreset
                         ? selectedPresetId === presetId && currentSpanMatches
-                        : index === firstMatchingIndex) && currentSpanMatches;
+                        : currentPresetId !== null
+                          ? currentPresetId === presetId
+                          : index === firstMatchingIndex) && currentSpanMatches;
                     return (
                       <Pressable
                         key={`journal-size-${presetId}-${index}`}
@@ -346,6 +366,42 @@ function getPresetAnchorOffset(
   const minX = Math.min(...coords.map((coord) => coord.x));
   const minY = Math.min(...coords.map((coord) => coord.y));
   return { x: minX, y: minY };
+}
+
+function inferPresetFromBoardAnchor(
+  presets: JournalSizePreset[],
+  boardX: number,
+  boardY: number
+): JournalSizePreset | null {
+  if (presets.length === 0) return null;
+  if (presets.length === 1) return presets[0];
+
+  const anchor = {
+    x: ((boardX % 2) + 2) % 2,
+    y: ((boardY % 2) + 2) % 2,
+  };
+
+  let best: {
+    preset: JournalSizePreset;
+    distance: number;
+    index: number;
+  } | null = null;
+
+  presets.forEach((preset, index) => {
+    const offset = getPresetAnchorOffset(preset);
+    const distance =
+      Math.abs(offset.x - anchor.x) + Math.abs(offset.y - anchor.y);
+
+    if (
+      !best ||
+      distance < best.distance ||
+      (distance === best.distance && index < best.index)
+    ) {
+      best = { preset, distance, index };
+    }
+  });
+
+  return best?.preset ?? null;
 }
 
 const styles = StyleSheet.create({

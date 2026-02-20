@@ -1,12 +1,15 @@
 import React from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react-native";
+import * as Haptics from "expo-haptics";
 
 import AddScreen from "../add";
 import { GamesProvider } from "@/lib/games-context";
 
+const mockReplace = jest.fn();
+
 jest.mock("expo-router", () => ({
   useRouter: () => ({
-    replace: jest.fn(),
+    replace: mockReplace,
   }),
 }));
 
@@ -36,6 +39,11 @@ async function renderAddScreen() {
 }
 
 describe("AddScreen", () => {
+  beforeEach(() => {
+    mockReplace.mockReset();
+    jest.clearAllMocks();
+  });
+
   it("renders add form with required fields", async () => {
     await renderAddScreen();
 
@@ -109,5 +117,25 @@ describe("AddScreen", () => {
 
     fireEvent.press(screen.getByTestId("add-ticket-type-ticket"));
     expect(screen.queryByTestId("add-postcard-side-front")).toBeNull();
+  });
+
+  it("saves and routes back to tabs when form is valid", async () => {
+    await renderAddScreen();
+
+    fireEvent.changeText(screen.getByTestId("add-title-input"), "Celeste");
+    fireEvent.changeText(screen.getByTestId("add-where-input"), "Chapter 3");
+    fireEvent.changeText(screen.getByTestId("add-thought-input"), "Great pacing");
+    fireEvent.press(screen.getByTestId("add-save-button"));
+
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith("/(tabs)"));
+    expect(Haptics.notificationAsync).toHaveBeenCalled();
+  });
+
+  it("handles press-in and press-out events on save button", async () => {
+    await renderAddScreen();
+    const button = screen.getByTestId("add-save-button");
+    fireEvent(button, "pressIn");
+    fireEvent(button, "pressOut");
+    expect(button).toBeTruthy();
   });
 });

@@ -7,7 +7,7 @@ export const Colors = {
     tint: palette.sage[500],
     icon: palette.sage[400],
     tabIconDefault: palette.sage[500], // Match center button
-    tabIconSelected: palette.cream.DEFAULT, // Cream for visibility
+    tabIconSelected: palette.warm[200], // Cork-tone selected icon
     tabIconShadow: palette.sage[400],
     tabBarBackground: palette.tabBar,
   },
@@ -17,7 +17,7 @@ export const Colors = {
     tint: palette.sage[300],
     icon: palette.sage[300],
     tabIconDefault: palette.sage[500], // Match center button
-    tabIconSelected: palette.cream.DEFAULT, // Cream for visibility
+    tabIconSelected: palette.warm[200], // Cork-tone selected icon
     tabIconShadow: palette.sage[300],
     tabBarBackground: palette.cream.dark,
   },

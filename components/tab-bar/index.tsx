@@ -18,10 +18,25 @@ export function TabBar({ state, navigation }: BottomTabBarProps) {
   const iconSize = width * ICON_SIZE_RATIO;
 
   return (
-    <View className="absolute bottom-0 w-full" style={{ height: tabBarHeight }}>
+    <View
+      style={{
+        position: "absolute",
+        bottom: 0,
+        width: "100%",
+        height: tabBarHeight,
+      }}
+    >
       <TabBarBackground width={width} />
 
-      <View className="flex-1 flex-row items-center justify-evenly px-[5%]">
+      <View
+        style={{
+          flex: 1,
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-evenly",
+          paddingHorizontal: "5%",
+        }}
+      >
         {TABS.map((tab) => {
           if (tab.isCenter) {
             return (

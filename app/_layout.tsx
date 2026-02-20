@@ -3,6 +3,7 @@ import {
   DefaultTheme,
   ThemeProvider,
 } from "@react-navigation/native";
+import { LinearGradient } from "expo-linear-gradient";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { Dimensions, Image, StyleSheet, View } from "react-native";
@@ -39,6 +40,32 @@ export default function RootLayout() {
         style={styles.backgroundTexture}
         resizeMode="repeat"
       />
+      <View style={styles.vignetteOverlay} pointerEvents="none">
+        <LinearGradient
+          colors={[
+            "rgba(68,88,57,0.12)",
+            "transparent",
+            "transparent",
+            "rgba(68,88,57,0.12)",
+          ]}
+          locations={[0, 0.25, 0.75, 1]}
+          style={StyleSheet.absoluteFill}
+          start={{ x: 0.5, y: 0 }}
+          end={{ x: 0.5, y: 1 }}
+        />
+        <LinearGradient
+          colors={[
+            "rgba(68,88,57,0.08)",
+            "transparent",
+            "transparent",
+            "rgba(68,88,57,0.08)",
+          ]}
+          locations={[0, 0.25, 0.75, 1]}
+          style={StyleSheet.absoluteFill}
+          start={{ x: 0, y: 0.5 }}
+          end={{ x: 1, y: 0.5 }}
+        />
+      </View>
       <ThemeProvider value={theme}>
         <Stack
           screenOptions={{
@@ -67,5 +94,10 @@ const styles = StyleSheet.create({
     width: SCREEN_WIDTH,
     height: SCREEN_HEIGHT,
     opacity: 0.35,
+  },
+  vignetteOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    width: SCREEN_WIDTH,
+    height: SCREEN_HEIGHT,
   },
 });

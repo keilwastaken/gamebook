@@ -1,0 +1,17 @@
+---
+description: Capture emulator screenshots before and after React Native UI edits
+alwaysApply: true
+---
+
+# Visual UI Verification Workflow
+
+When building, modifying, or fixing a React Native UI component, use this loop:
+
+1. **Observe Before:** Run `./capture-ui.sh pre_edit.png`.
+2. **Execute:** Implement the requested UI code changes.
+3. **Wait for Fast Refresh:** Wait about 3 seconds for simulator hot reload.
+4. **Observe After:** Run `./capture-ui.sh post_edit.png`.
+5. **Verify:** Inspect `post_edit.png` against requirements (spacing, shadows, rotation, alignment, tactile feel).
+6. **Iterate if needed:** If visuals are off, adjust code and repeat steps 3-5.
+
+Prefer this visual loop over guessing layout outcomes from code alone.

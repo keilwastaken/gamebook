@@ -12,7 +12,15 @@ export function TabBarBackground({ width }: TabBarBackgroundProps) {
   const imageHeight = width * IMAGE_ASPECT_RATIO;
 
   return (
-    <View className="absolute inset-0">
+    <View
+      style={{
+        position: "absolute",
+        top: 0,
+        right: 0,
+        bottom: 0,
+        left: 0,
+      }}
+    >
       <Image
         source={tabBarImage}
         style={{ width, height: imageHeight, marginTop: -70 }}

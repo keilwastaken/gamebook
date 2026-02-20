@@ -1,0 +1,8 @@
+## Visual UI Verification Workflow
+When asked to build, modify, or fix a React Native UI component, you MUST use the following visual feedback loop:
+
+1. **Observe Before:** Run `./capture-ui.sh pre_edit.png` to see the current state of the UI. Analyze the image to understand the baseline.
+2. **Execute:** Write or modify the React Native code to fulfill the requirement.
+3. **Wait for Fast Refresh:** Wait 3 seconds to ensure the Metro bundler has hot-reloaded the app in the simulator.
+4. **Observe After:** Run `./capture-ui.sh post_edit.png` to capture the new state.
+5. **Verify:** Analyze `post_edit.png`. If it does not match requirements, adjust the code and repeat steps 3-5.

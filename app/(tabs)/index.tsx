@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
@@ -25,6 +25,7 @@ import {
   applyBoardLayout,
   constrainSpanForCard,
   getCardSpan,
+  getCardSpanPresets,
 } from "@/lib/board-layout";
 import { DEFAULT_TICKET_TYPE, type Game, type TicketType } from "@/lib/types";
 
@@ -38,7 +39,13 @@ const BASE_CARD_SIZE: Record<TicketType, { width: number; height: number }> = {
 };
 
 export default function HomeScreen() {
-  const { playingGames, loading, saveNote, moveGameToBoardTarget } = useGamesContext();
+  const {
+    playingGames,
+    loading,
+    saveNote,
+    moveGameToBoardTarget,
+    setGameSpanPreset,
+  } = useGamesContext();
   const [activeGame, setActiveGame] = useState<Game | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragVisualSpan, setDragVisualSpan] = useState<{ w: number; h: number }>({
@@ -178,6 +185,37 @@ export default function HomeScreen() {
     setActiveGame(null);
   }, []);
 
+  const activeGameSpanPresets = useMemo(
+    () => getCardSpanPresets(activeGame?.ticketType, boardColumns),
+    [activeGame, boardColumns]
+  );
+  const activeGameCurrentSpan = useMemo(() => {
+    if (!activeGame) return { w: 1, h: 1 };
+    return constrainSpanForCard(
+      activeGame.ticketType,
+      activeGame.board
+        ? { w: activeGame.board.w, h: activeGame.board.h }
+        : getCardSpan(activeGame.ticketType),
+      boardColumns
+    );
+  }, [activeGame, boardColumns]);
+
+  const handleSetActiveGameSpan = useCallback(
+    async (span: { w: number; h: number }) => {
+      if (!activeGame) return;
+      await setGameSpanPreset(activeGame.id, span, boardColumns);
+    },
+    [activeGame, setGameSpanPreset, boardColumns]
+  );
+
+  useEffect(() => {
+    if (!activeGame) return;
+    const latest = boardGames.find((game) => game.id === activeGame.id);
+    if (latest && latest !== activeGame) {
+      setActiveGame(latest);
+    }
+  }, [boardGames, activeGame]);
+
   const stopDragging = useCallback(() => {
     setDraggingId(null);
     setDragVisualSpan({ w: 1, h: 1 });
@@ -191,9 +229,9 @@ export default function HomeScreen() {
   const updateDropTarget = useCallback(
     (left: number, top: number) => {
       if (!draggingId) return;
-      const span = dragSpanRef.current;
       const strideX = cellWidth + BOARD_GAP;
       const strideY = rowHeight + BOARD_GAP;
+      const span = dragSpanRef.current;
       const dragWidth = span.w * cellWidth + (span.w - 1) * BOARD_GAP;
       const dragHeight = span.h * rowHeight + (span.h - 1) * BOARD_GAP;
       const dragCenterX = left + dragWidth / 2;
@@ -378,74 +416,75 @@ export default function HomeScreen() {
               const isDragging = draggingId === game.id;
 
               return (
-                <Pressable
-                  key={game.id}
-                  onPress={() => {
-                    if (consumeNextPress.current || draggingId) {
-                      consumeNextPress.current = false;
-                      return;
-                    }
-                    handleAddNote(game.id);
-                  }}
-                  onLongPress={(event) => {
-                    const locationX = event.nativeEvent.locationX;
-                    const locationY = event.nativeEvent.locationY;
-                    consumeNextPress.current = true;
-                    boardRef.current?.measureInWindow((x, y) => {
-                      boardOriginRef.current = { x, y };
-                    });
-                    dragOffsetRef.current = { x: locationX, y: locationY };
-                    dragXY.setValue({ x: slotLeft, y: slotTop });
-                    setDraggingId(game.id);
-                    const lockedSpan = constrainSpanForCard(
-                      ticketType,
-                      { w: board.w, h: board.h },
-                      boardColumns
-                    );
-                    dragSpanRef.current = lockedSpan;
-                    setDragVisualSpan(lockedSpan);
-                    setDragVisualScale(scale);
-                    setDragIndex(index);
-                    const initialTarget = {
-                      x: board.x,
-                      y: board.y,
-                      w: lockedSpan.w,
-                      h: lockedSpan.h,
-                    };
-                    targetSlotRef.current = { x: board.x, y: board.y };
-                    dropTargetKeyRef.current = `${initialTarget.x}-${initialTarget.y}-${initialTarget.w}-${initialTarget.h}`;
-                    setDropTarget(initialTarget);
-                    animateDropTargetTo(initialTarget, true);
-                  }}
-                  delayLongPress={220}
-                  testID={`playing-card-add-${game.id}`}
-                  accessibilityLabel={`Update bookmark for ${game.title}`}
-                  accessibilityRole="button"
-                  style={[
-                    styles.boardItem,
-                    {
-                      left: slotLeft,
-                      top: slotTop,
-                      width: slotWidth,
-                      height: slotHeight,
-                      zIndex: isDragging ? 1 : 2,
-                      opacity: isDragging ? 0.18 : 1,
-                    },
-                  ]}
-                >
-                  <View style={styles.slotCenter} testID={`playing-card-${game.id}`}>
-                    <View
-                      style={{
-                        transform: [
-                          { scale },
-                          { rotate: draggingId === game.id ? "0.8deg" : "0deg" },
-                        ],
-                      }}
-                    >
-                      {renderCardVisual(game, index)}
+                <View key={game.id}>
+                  <Pressable
+                    onPress={() => {
+                      if (consumeNextPress.current || draggingId) {
+                        consumeNextPress.current = false;
+                        return;
+                      }
+                      handleAddNote(game.id);
+                    }}
+                    onLongPress={(event) => {
+                      const locationX = event.nativeEvent.locationX;
+                      const locationY = event.nativeEvent.locationY;
+                      consumeNextPress.current = true;
+                      boardRef.current?.measureInWindow((x, y) => {
+                        boardOriginRef.current = { x, y };
+                      });
+                      dragOffsetRef.current = { x: locationX, y: locationY };
+                      dragXY.setValue({ x: slotLeft, y: slotTop });
+                      setDraggingId(game.id);
+                      const lockedSpan = constrainSpanForCard(
+                        ticketType,
+                        { w: board.w, h: board.h },
+                        boardColumns
+                      );
+                      dragSpanRef.current = lockedSpan;
+                      setDragVisualSpan(lockedSpan);
+                      setDragVisualScale(scale);
+                      setDragIndex(index);
+                      const initialTarget = {
+                        x: board.x,
+                        y: board.y,
+                        w: lockedSpan.w,
+                        h: lockedSpan.h,
+                      };
+                      targetSlotRef.current = { x: board.x, y: board.y };
+                      dropTargetKeyRef.current = `${initialTarget.x}-${initialTarget.y}-${initialTarget.w}-${initialTarget.h}`;
+                      setDropTarget(initialTarget);
+                      animateDropTargetTo(initialTarget, true);
+                    }}
+                    delayLongPress={220}
+                    testID={`playing-card-add-${game.id}`}
+                    accessibilityLabel={`Update bookmark for ${game.title}`}
+                    accessibilityRole="button"
+                    style={[
+                      styles.boardItem,
+                      {
+                        left: slotLeft,
+                        top: slotTop,
+                        width: slotWidth,
+                        height: slotHeight,
+                        zIndex: isDragging ? 1 : 2,
+                        opacity: isDragging ? 0.18 : 1,
+                      },
+                    ]}
+                  >
+                    <View style={styles.slotCenter} testID={`playing-card-${game.id}`}>
+                      <View
+                        style={{
+                          transform: [
+                            { scale },
+                            { rotate: draggingId === game.id ? "0.8deg" : "0deg" },
+                          ],
+                        }}
+                      >
+                        {renderCardVisual(game, index)}
+                      </View>
                     </View>
-                  </View>
-                </Pressable>
+                  </Pressable>
+                </View>
               );
             })}
             {draggingGame ? (
@@ -513,6 +552,11 @@ export default function HomeScreen() {
           game={activeGame}
           onSave={handleSaveNote}
           onClose={handleCloseJournal}
+          sizePresets={activeGameSpanPresets}
+          currentSize={activeGameCurrentSpan}
+          onSelectSize={(span) => {
+            void handleSetActiveGameSpan(span);
+          }}
         />
       )}
     </>

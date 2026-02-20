@@ -3,6 +3,7 @@ import {
   applyBoardLayoutWithPinned,
   constrainSpanForCard,
   findBestInsertion,
+  getCardSpanPresets,
   getAxisIntentSpan,
   getHoverZone,
   previewInsertionAtIndex,
@@ -53,10 +54,10 @@ describe("board-layout", () => {
     expect(getAxisIntentSpan(50, 100, 4)).toBe(1);
   });
 
-  it("constrains extreme aspect spans while allowing up to 2x2", () => {
+  it("constrains legacy spans to type presets", () => {
     expect(constrainSpanForCard("polaroid", { w: 4, h: 1 }, 4)).toMatchObject({
-      w: 2,
-      h: 1,
+      w: 1,
+      h: 2,
     });
     expect(constrainSpanForCard("postcard", { w: 4, h: 4 }, 4)).toMatchObject({
       w: 2,
@@ -68,6 +69,13 @@ describe("board-layout", () => {
     expect(constrainSpanForCard("postcard", { w: 1, h: 1 }, 4)).toMatchObject({
       w: 2,
       h: 1,
+    });
+  });
+
+  it("preserves explicit preset selections when exact", () => {
+    expect(constrainSpanForCard("polaroid", { w: 2, h: 2 }, 4)).toMatchObject({
+      w: 2,
+      h: 2,
     });
   });
 
@@ -103,5 +111,16 @@ describe("board-layout", () => {
     const moved = pinned.find((g) => g.id === "postcard");
 
     expect(moved?.board).toMatchObject({ x: 2, y: 3, w: 2, h: 1 });
+  });
+
+  it("exposes preset options by card type", () => {
+    expect(getCardSpanPresets("polaroid", 4)).toEqual([
+      { w: 1, h: 2 },
+      { w: 2, h: 2 },
+    ]);
+    expect(getCardSpanPresets("postcard", 4)).toEqual([
+      { w: 2, h: 1 },
+      { w: 2, h: 2 },
+    ]);
   });
 });

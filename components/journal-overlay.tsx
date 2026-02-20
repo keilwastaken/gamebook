@@ -22,12 +22,23 @@ export interface JournalOverlayProps {
     quickThought?: string;
   }) => void;
   onClose: () => void;
+  sizePresets?: Array<{ w: number; h: number }>;
+  currentSize?: { w: number; h: number };
+  onSelectSize?: (span: { w: number; h: number }) => void;
 }
 
-export function JournalOverlay({ game, onSave, onClose }: JournalOverlayProps) {
+export function JournalOverlay({
+  game,
+  onSave,
+  onClose,
+  sizePresets = [],
+  currentSize,
+  onSelectSize,
+}: JournalOverlayProps) {
   const [whereLeftOff, setWhereLeftOff] = useState("");
   const [quickThought, setQuickThought] = useState("");
   const [saving, setSaving] = useState(false);
+  const [showSizeOptions, setShowSizeOptions] = useState(false);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(40)).current;
@@ -125,7 +136,42 @@ export function JournalOverlay({ game, onSave, onClose }: JournalOverlayProps) {
           <View style={[styles.card, CozyShadows.base]}>
             <View style={styles.handle} />
 
-            <Text style={styles.gameTitle}>{game.title}</Text>
+            <View style={styles.titleRow}>
+              <Text style={styles.gameTitle}>{game.title}</Text>
+              {onSelectSize && sizePresets.length > 0 ? (
+                <Pressable
+                  testID="journal-size-button"
+                  style={styles.sizeButton}
+                  onPress={() => setShowSizeOptions((value) => !value)}
+                >
+                  <Text style={styles.sizeButtonText}>Size</Text>
+                </Pressable>
+              ) : null}
+            </View>
+            {showSizeOptions && onSelectSize && sizePresets.length > 0 ? (
+              <View style={styles.sizeOptionsRow} testID="journal-size-options">
+                {sizePresets.map((preset) => {
+                  const selected =
+                    preset.w === currentSize?.w && preset.h === currentSize?.h;
+                  return (
+                    <Pressable
+                      key={`journal-size-${preset.w}x${preset.h}`}
+                      testID={`journal-size-${preset.w}x${preset.h}`}
+                      style={[
+                        styles.sizeOptionButton,
+                        selected && styles.sizeOptionButtonSelected,
+                      ]}
+                      onPress={() => {
+                        onSelectSize(preset);
+                        setShowSizeOptions(false);
+                      }}
+                    >
+                      <SpanGlyph span={preset} selected={selected} />
+                    </Pressable>
+                  );
+                })}
+              </View>
+            ) : null}
 
             <Text style={styles.sectionLabel}>WHERE I LEFT OFF</Text>
             <TextInput
@@ -215,6 +261,32 @@ function SaveButton({
   );
 }
 
+function SpanGlyph({
+  span,
+  selected,
+}: {
+  span: { w: number; h: number };
+  selected: boolean;
+}) {
+  const cells = [];
+  for (let row = 0; row < 2; row += 1) {
+    for (let col = 0; col < 2; col += 1) {
+      const filled = col < span.w && row < span.h;
+      cells.push(
+        <View
+          key={`glyph-${col}-${row}`}
+          style={[
+            styles.spanGlyphCell,
+            filled && styles.spanGlyphCellFilled,
+            filled && selected && styles.spanGlyphCellSelected,
+          ]}
+        />
+      );
+    }
+  }
+  return <View style={styles.spanGlyph}>{cells}</View>;
+}
+
 const styles = StyleSheet.create({
   overlay: {
     ...StyleSheet.absoluteFillObject,
@@ -251,7 +323,70 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     fontFamily: "Nunito",
     color: palette.text.primary,
-    marginBottom: 20,
+  },
+  titleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 14,
+  },
+  sizeButton: {
+    height: 28,
+    minWidth: 56,
+    borderRadius: 14,
+    backgroundColor: palette.sage[50],
+    borderWidth: 1,
+    borderColor: palette.sage[300],
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 10,
+  },
+  sizeButtonText: {
+    fontSize: 12,
+    fontFamily: "Nunito",
+    fontWeight: "700",
+    color: palette.sage[600],
+  },
+  sizeOptionsRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 12,
+  },
+  sizeOptionButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: palette.cream.DEFAULT,
+    borderWidth: 1,
+    borderColor: palette.sage[200],
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  sizeOptionButtonSelected: {
+    borderColor: palette.sage[500],
+    backgroundColor: palette.sage[50],
+  },
+  spanGlyph: {
+    width: 18,
+    height: 18,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 2,
+  },
+  spanGlyphCell: {
+    width: 8,
+    height: 8,
+    borderRadius: 2,
+    borderWidth: 1,
+    borderColor: palette.sage[300],
+    backgroundColor: "transparent",
+  },
+  spanGlyphCellFilled: {
+    backgroundColor: palette.sage[300],
+  },
+  spanGlyphCellSelected: {
+    borderColor: palette.sage[500],
+    backgroundColor: palette.sage[500],
   },
   sectionLabel: {
     fontSize: 10,

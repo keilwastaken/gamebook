@@ -338,4 +338,76 @@ describe("useGames", () => {
     expect(moved?.board).toMatchObject({ x: 2, y: 3, w: 2, h: 1, columns: 4 });
     expect(mockSetItem).toHaveBeenCalled();
   });
+
+  it("normalizes legacy invalid spans on load", async () => {
+    const stored = [
+      {
+        id: "g1",
+        title: "Legacy Polaroid",
+        status: "playing",
+        ticketType: "polaroid",
+        notes: [],
+        board: { x: 0, y: 0, w: 2, h: 1, columns: 4 },
+      },
+    ];
+    mockGetItem.mockResolvedValue(JSON.stringify(stored));
+
+    const { result } = renderHook(() => useGames());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.games[0].board).toMatchObject({ w: 1, h: 2, columns: 4 });
+    expect(mockSetItem).toHaveBeenCalled();
+  });
+
+  it("cycleGameSpanPreset cycles through allowed spans for a card type", async () => {
+    const stored = [
+      {
+        id: "g1",
+        title: "Polaroid",
+        status: "playing",
+        ticketType: "polaroid",
+        notes: [],
+        board: { x: 0, y: 0, w: 1, h: 2, columns: 4 },
+      },
+    ];
+    mockGetItem.mockResolvedValue(JSON.stringify(stored));
+
+    const { result } = renderHook(() => useGames());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => {
+      await result.current.cycleGameSpanPreset!("g1", 4);
+    });
+    expect(result.current.games[0].board).toMatchObject({ w: 2, h: 2, columns: 4 });
+
+    await act(async () => {
+      await result.current.cycleGameSpanPreset!("g1", 4);
+    });
+    expect(result.current.games[0].board).toMatchObject({ w: 1, h: 2, columns: 4 });
+    expect(mockSetItem).toHaveBeenCalled();
+  });
+
+  it("setGameSpanPreset applies explicit preset span", async () => {
+    const stored = [
+      {
+        id: "g1",
+        title: "Postcard",
+        status: "playing",
+        ticketType: "postcard",
+        notes: [],
+        board: { x: 1, y: 1, w: 2, h: 1, columns: 4 },
+      },
+    ];
+    mockGetItem.mockResolvedValue(JSON.stringify(stored));
+
+    const { result } = renderHook(() => useGames());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => {
+      await result.current.setGameSpanPreset!("g1", { w: 2, h: 2 }, 4);
+    });
+
+    expect(result.current.games[0].board).toMatchObject({ w: 2, h: 2, columns: 4 });
+    expect(mockSetItem).toHaveBeenCalled();
+  });
 });

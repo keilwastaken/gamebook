@@ -39,6 +39,7 @@ AGENTS.md              # Points to CLAUDE.md
 .cursorrules           # Points to CLAUDE.md
 docs/                  # Versioned knowledge base
   architecture.md      # App structure, layers, dependency rules
+  drag-and-drop.md     # Board grid, drag/drop, span, and reflow internals
   testing-strategy.md  # Test harness: unit, component, E2E, visual
   ci-gates.md          # CI jobs and pass criteria
   exec-plans/          # Execution plans for larger work items
@@ -62,6 +63,7 @@ source of truth for rules, design principles, and workflows.
 Deep-dive docs live in [docs/](docs/README.md):
 
 - [Architecture](docs/architecture.md) — stack, directory layout, dependency rules
+- [Board Drag and Drop](docs/drag-and-drop.md) — layout, snapping, span presets, migration
 - [Testing Strategy](docs/testing-strategy.md) — Jest, Detox, visual verification
 - [CI Gates](docs/ci-gates.md) — GitHub Actions jobs and pass criteria
 - [Execution Plans](docs/exec-plans/) — plans for in-flight and completed work

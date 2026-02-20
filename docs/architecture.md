@@ -62,3 +62,8 @@ assets/images/        # Static images (textures, tab-bar art)
 - **Routing**: Expo Router drives navigation; screens map 1:1 to routes.
 - **Styling**: NativeWind + Tailwind classes; `constants/theme.ts` for
   programmatic theme access.
+
+## Subsystem Deep Dives
+
+- [Board Drag and Drop Architecture](drag-and-drop.md): placement algorithm,
+  pinned reflow behavior, target snapping, span presets, and migration strategy.

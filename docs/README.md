@@ -8,6 +8,7 @@ Agents and humans should start here, then follow links to deeper docs.
 | Doc | Purpose |
 |-----|---------|
 | [architecture.md](architecture.md) | App structure, layers, and dependency rules |
+| [drag-and-drop.md](drag-and-drop.md) | Detailed board layout, drag/drop, and size system behavior |
 | [testing-strategy.md](testing-strategy.md) | Test harness overview: unit, component, E2E |
 | [ci-gates.md](ci-gates.md) | CI jobs, pass criteria, and how to add gates |
 | [exec-plans/](exec-plans/) | Execution plans for in-flight and completed work |

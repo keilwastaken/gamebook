@@ -73,4 +73,46 @@ describe("JournalOverlay", () => {
 
     expect(screen.getByText("Save Gentle Note")).toBeTruthy();
   });
+
+  it("shows size button when size handlers are provided", () => {
+    render(
+      <JournalOverlay
+        game={MOCK_GAME}
+        onSave={jest.fn()}
+        onClose={jest.fn()}
+        sizePresets={[
+          { w: 1, h: 2 },
+          { w: 2, h: 2 },
+        ]}
+        currentSize={{ w: 1, h: 2 }}
+        onSelectSize={jest.fn()}
+      />
+    );
+
+    expect(screen.getByTestId("journal-size-button")).toBeTruthy();
+  });
+
+  it("toggles size options and calls onSelectSize when choosing a size", () => {
+    const onSelectSize = jest.fn();
+    render(
+      <JournalOverlay
+        game={MOCK_GAME}
+        onSave={jest.fn()}
+        onClose={jest.fn()}
+        sizePresets={[
+          { w: 1, h: 2 },
+          { w: 2, h: 2 },
+        ]}
+        currentSize={{ w: 1, h: 2 }}
+        onSelectSize={onSelectSize}
+      />
+    );
+
+    fireEvent.press(screen.getByTestId("journal-size-button"));
+    expect(screen.getByTestId("journal-size-options")).toBeTruthy();
+
+    fireEvent.press(screen.getByTestId("journal-size-2x2"));
+    expect(onSelectSize).toHaveBeenCalledWith({ w: 2, h: 2 });
+    expect(screen.queryByTestId("journal-size-options")).toBeNull();
+  });
 });

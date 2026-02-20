@@ -3,6 +3,8 @@ import type { Game, TicketType } from "./types";
 export const DEFAULT_BOARD_COLUMNS = 4;
 export type HoverZone = "left" | "right" | "top" | "bottom" | "middle";
 
+type Span = { w: number; h: number };
+
 export function getCardSpan(ticketType: TicketType | undefined): {
   w: number;
   h: number;
@@ -15,51 +17,61 @@ export function getCardSpan(ticketType: TicketType | undefined): {
   return { w: 1, h: 1 };
 }
 
+export function getCardSpanPresets(
+  ticketType: TicketType | undefined,
+  columns: number
+): Span[] {
+  const maxW = Math.max(1, Math.min(columns, 4));
+  const presetsByType: Record<TicketType, Span[]> = {
+    polaroid: [
+      { w: 1, h: 2 },
+      { w: 2, h: 2 },
+    ],
+    postcard: [
+      { w: 2, h: 1 },
+      { w: 2, h: 2 },
+    ],
+    ticket: [
+      { w: 2, h: 1 },
+      { w: 2, h: 2 },
+    ],
+    minimal: [
+      { w: 1, h: 1 },
+      { w: 2, h: 1 },
+      { w: 2, h: 2 },
+    ],
+    widget: [
+      { w: 1, h: 1 },
+      { w: 2, h: 1 },
+      { w: 2, h: 2 },
+    ],
+  };
+  const presets = ticketType ? presetsByType[ticketType] : [{ w: 1, h: 1 }];
+  const visible = presets.filter((preset) => preset.w <= maxW);
+  return visible.length > 0 ? visible : [{ w: 1, h: 1 }];
+}
+
 export function constrainSpanForCard(
   ticketType: TicketType | undefined,
   desired: { w: number; h: number },
   columns: number
 ): { w: number; h: number } {
-  const base = getCardSpan(ticketType);
-  const minArea = base.w * base.h;
-  const boardMaxW = Math.max(1, Math.min(columns, 4));
-  const maxW = Math.min(boardMaxW, 2);
-  const maxH = 2;
-  const isLandscapePreferred =
-    ticketType === "postcard" || ticketType === "ticket";
+  const presets = getCardSpanPresets(ticketType, columns);
+  const exact = presets.find((preset) => preset.w === desired.w && preset.h === desired.h);
+  if (exact) return exact;
 
-  let best: { w: number; h: number; score: number } | null = null;
+  const desiredArea = desired.w * desired.h;
+  const largestPreset = presets.reduce((largest, preset) => {
+    const area = preset.w * preset.h;
+    const largestArea = largest.w * largest.h;
+    return area > largestArea ? preset : largest;
+  }, presets[0]);
 
-  for (let w = 1; w <= maxW; w += 1) {
-    for (let h = 1; h <= maxH; h += 1) {
-      if (w * h < minArea) continue;
-      const longSide = Math.max(w, h);
-      const shortSide = Math.min(w, h);
-      if (longSide / shortSide > 2) continue;
-      if (isLandscapePreferred && w < h) continue;
-
-      const distance = Math.abs(w - desired.w) + Math.abs(h - desired.h);
-      const orientationPenalty =
-        ticketType === "polaroid"
-          ? 0
-          : Math.abs((w >= h ? 1 : 0) - (base.w >= base.h ? 1 : 0));
-      const score = distance * 10 + orientationPenalty;
-
-      if (
-        !best ||
-        score < best.score ||
-        (score === best.score && w * h > best.w * best.h)
-      ) {
-        best = { w, h, score };
-      }
-    }
+  if (desiredArea > largestPreset.w * largestPreset.h) {
+    return largestPreset;
   }
 
-  if (best) return { w: best.w, h: best.h };
-  return {
-    w: Math.max(1, Math.min(desired.w, maxW)),
-    h: Math.max(1, Math.min(desired.h, maxH)),
-  };
+  return presets[0];
 }
 
 function clampSpan(span: { w: number; h: number }, columns: number): {

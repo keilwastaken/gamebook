@@ -11,7 +11,10 @@ import {
 import {
   applyBoardLayout,
   applyBoardLayoutWithPinned,
+  constrainSpanForCard,
   DEFAULT_BOARD_COLUMNS,
+  getCardSpan,
+  getCardSpanPresets,
 } from "./board-layout";
 
 const STORAGE_KEY = "@gamebook/games";
@@ -106,11 +109,20 @@ async function loadGames(): Promise<Game[]> {
         mountStyle: game.mountStyle ?? DEFAULT_CARD_MOUNT_STYLE,
         postcardSide: game.postcardSide ?? DEFAULT_POSTCARD_SIDE,
       }));
+      const needsSpanNormalization = normalized.some((game) => {
+        if (!game.board) return false;
+        const constrained = constrainSpanForCard(
+          game.ticketType,
+          { w: game.board.w, h: game.board.h },
+          DEFAULT_BOARD_COLUMNS
+        );
+        return constrained.w !== game.board.w || constrained.h !== game.board.h;
+      });
       const needsLayoutMigration = normalized.some(
         (game) =>
           !game.board ||
           game.board.columns !== DEFAULT_BOARD_COLUMNS
-      );
+      ) || needsSpanNormalization;
       const withLayout = needsLayoutMigration
         ? applyBoardLayout(normalized, DEFAULT_BOARD_COLUMNS)
         : normalized;
@@ -276,6 +288,72 @@ export function useGames() {
     []
   );
 
+  const cycleGameSpanPreset = useCallback(
+    async (
+      gameId: string,
+      columns: number = DEFAULT_BOARD_COLUMNS
+    ): Promise<void> => {
+      setGames((prev) => {
+        const game = prev.find((item) => item.id === gameId);
+        if (!game) return prev;
+
+        const presets = getCardSpanPresets(game.ticketType, columns);
+        if (presets.length <= 1) return prev;
+
+        const currentSpan = constrainSpanForCard(
+          game.ticketType,
+          game.board
+            ? { w: game.board.w, h: game.board.h }
+            : getCardSpan(game.ticketType),
+          columns
+        );
+        const currentIndex = presets.findIndex(
+          (preset) => preset.w === currentSpan.w && preset.h === currentSpan.h
+        );
+        const nextIndex = currentIndex >= 0 ? (currentIndex + 1) % presets.length : 0;
+        const nextSpan = presets[nextIndex];
+        const targetX = game.board?.x ?? 0;
+        const targetY = game.board?.y ?? 0;
+
+        const next = applyBoardLayoutWithPinned(
+          prev,
+          gameId,
+          { x: targetX, y: targetY, w: nextSpan.w, h: nextSpan.h },
+          columns
+        );
+        persistGames(next);
+        return next;
+      });
+    },
+    []
+  );
+
+  const setGameSpanPreset = useCallback(
+    async (
+      gameId: string,
+      span: { w: number; h: number },
+      columns: number = DEFAULT_BOARD_COLUMNS
+    ): Promise<void> => {
+      setGames((prev) => {
+        const game = prev.find((item) => item.id === gameId);
+        if (!game) return prev;
+
+        const targetSpan = constrainSpanForCard(game.ticketType, span, columns);
+        const targetX = game.board?.x ?? 0;
+        const targetY = game.board?.y ?? 0;
+        const next = applyBoardLayoutWithPinned(
+          prev,
+          gameId,
+          { x: targetX, y: targetY, w: targetSpan.w, h: targetSpan.h },
+          columns
+        );
+        persistGames(next);
+        return next;
+      });
+    },
+    []
+  );
+
   return {
     games,
     playingGames,
@@ -285,5 +363,7 @@ export function useGames() {
     saveBoardPlacement,
     reorderGame,
     moveGameToBoardTarget,
+    cycleGameSpanPreset,
+    setGameSpanPreset,
   };
 }

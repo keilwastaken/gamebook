@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { type ComponentType, useRef, useState } from "react";
 import {
   Animated,
   KeyboardAvoidingView,
@@ -12,10 +12,31 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
+import {
+  AlignLeftIcon,
+  CameraIcon,
+  EnvelopeSimpleIcon,
+  type IconProps,
+  SquaresFourIcon,
+  TicketIcon,
+} from "phosphor-react-native";
 
 import { palette } from "@/constants/palette";
 import { CozyShadows } from "@/utils/shadows";
 import { useGamesContext } from "@/lib/games-context";
+import { DEFAULT_TICKET_TYPE, type TicketType } from "@/lib/types";
+
+const TICKET_TYPE_OPTIONS: Array<{
+  id: TicketType;
+  label: string;
+  Icon: ComponentType<IconProps>;
+}> = [
+  { id: "polaroid", label: "Polaroid", Icon: CameraIcon },
+  { id: "postcard", label: "Postcard", Icon: EnvelopeSimpleIcon },
+  { id: "widget", label: "Widget", Icon: SquaresFourIcon },
+  { id: "ticket", label: "Ticket", Icon: TicketIcon },
+  { id: "minimal", label: "Minimal", Icon: AlignLeftIcon },
+];
 
 export default function AddScreen() {
   const router = useRouter();
@@ -23,6 +44,7 @@ export default function AddScreen() {
   const [title, setTitle] = useState("");
   const [whereLeftOff, setWhereLeftOff] = useState("");
   const [quickThought, setQuickThought] = useState("");
+  const [ticketType, setTicketType] = useState<TicketType>(DEFAULT_TICKET_TYPE);
   const [saving, setSaving] = useState(false);
 
   const scaleAnim = useRef(new Animated.Value(1)).current;
@@ -38,6 +60,7 @@ export default function AddScreen() {
       progress: 0,
       whereLeftOff: whereLeftOff.trim(),
       quickThought: quickThought.trim() || undefined,
+      ticketType,
     });
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setSaving(false);
@@ -111,6 +134,33 @@ export default function AddScreen() {
             maxLength={200}
           />
 
+          <Text style={styles.sectionLabel}>TICKET TYPE</Text>
+          <View style={styles.ticketTypeRow}>
+            {TICKET_TYPE_OPTIONS.map(({ id, label, Icon }) => {
+              const selected = id === ticketType;
+              return (
+                <Pressable
+                  key={id}
+                  testID={`add-ticket-type-${id}`}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Select ${label} ticket type`}
+                  accessibilityState={{ selected }}
+                  onPress={() => setTicketType(id)}
+                  style={[
+                    styles.ticketTypeButton,
+                    selected && styles.ticketTypeButtonSelected,
+                  ]}
+                >
+                  <Icon
+                    size={18}
+                    color={selected ? palette.cream.DEFAULT : palette.sage[500]}
+                    weight={selected ? "fill" : "regular"}
+                  />
+                </Pressable>
+              );
+            })}
+          </View>
+
           <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
             <Pressable
               testID="add-save-button"
@@ -183,7 +233,26 @@ const styles = StyleSheet.create({
   },
   thoughtInput: {
     minHeight: 48,
+    marginBottom: 12,
+  },
+  ticketTypeRow: {
+    flexDirection: "row",
+    gap: 8,
     marginBottom: 24,
+  },
+  ticketTypeButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    borderWidth: 1,
+    borderColor: palette.sage[300],
+    backgroundColor: palette.cream.DEFAULT,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  ticketTypeButtonSelected: {
+    backgroundColor: palette.sage[500],
+    borderColor: palette.sage[500],
   },
   saveButton: {
     backgroundColor: palette.sage[500],

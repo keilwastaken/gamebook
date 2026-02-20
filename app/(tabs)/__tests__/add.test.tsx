@@ -69,4 +69,19 @@ describe("AddScreen", () => {
     render(<AddScreenWithProvider />);
     await waitFor(() => expect(screen.getByTestId("add-thought-input")).toBeTruthy());
   });
+
+  it("shows ticket type choices with polaroid selected by default", async () => {
+    render(<AddScreenWithProvider />);
+    await waitFor(() =>
+      expect(screen.getByTestId("add-ticket-type-polaroid")).toBeTruthy()
+    );
+
+    expect(
+      screen.getByTestId("add-ticket-type-polaroid").props.accessibilityState?.selected
+    ).toBe(true);
+    expect(screen.getByTestId("add-ticket-type-postcard")).toBeTruthy();
+    expect(screen.getByTestId("add-ticket-type-widget")).toBeTruthy();
+    expect(screen.getByTestId("add-ticket-type-ticket")).toBeTruthy();
+    expect(screen.getByTestId("add-ticket-type-minimal")).toBeTruthy();
+  });
 });

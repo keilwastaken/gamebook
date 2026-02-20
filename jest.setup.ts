@@ -12,8 +12,13 @@ jest.mock("phosphor-react-native", () => {
   };
 
   return {
+    AlignLeftIcon: createMockIcon("AlignLeftIcon"),
     HouseIcon: createMockIcon("HouseIcon"),
     BookOpenIcon: createMockIcon("BookOpenIcon"),
+    CameraIcon: createMockIcon("CameraIcon"),
+    EnvelopeSimpleIcon: createMockIcon("EnvelopeSimpleIcon"),
+    SquaresFourIcon: createMockIcon("SquaresFourIcon"),
+    TicketIcon: createMockIcon("TicketIcon"),
     PlusIcon: createMockIcon("PlusIcon"),
     HeartIcon: createMockIcon("HeartIcon"),
     UserIcon: createMockIcon("UserIcon"),

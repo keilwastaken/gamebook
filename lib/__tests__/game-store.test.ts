@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { renderHook, act, waitFor } from "@testing-library/react-native";
 import { useGames } from "../game-store";
+import { DEFAULT_TICKET_TYPE } from "../types";
 
 jest.mock("@react-native-async-storage/async-storage", () => ({
   getItem: jest.fn(),
@@ -46,7 +47,10 @@ describe("useGames", () => {
 
     await waitFor(() => expect(result.current.loading).toBe(false));
 
-    expect(result.current.games).toEqual(stored);
+    expect(result.current.games[0]).toMatchObject({
+      ...stored[0],
+      ticketType: DEFAULT_TICKET_TYPE,
+    });
     expect(result.current.playingGames.length).toBe(1);
   });
 
@@ -112,6 +116,7 @@ describe("useGames", () => {
     const game = result.current.games[0];
     expect(game.title).toBe("New Game");
     expect(game.status).toBe("playing");
+    expect(game.ticketType).toBe(DEFAULT_TICKET_TYPE);
     expect(game.progress).toBe(0.25);
     expect(game.lastNote?.whereLeftOff).toBe("Just started");
     expect(game.lastNote?.quickThought).toBe("Excited");
@@ -142,5 +147,6 @@ describe("useGames", () => {
     const added = stored.find((g: { title: string }) => g.title === "Persisted");
     expect(added).toBeDefined();
     expect(added.lastNote.whereLeftOff).toBe("Mid game");
+    expect(added.ticketType).toBe(DEFAULT_TICKET_TYPE);
   });
 });

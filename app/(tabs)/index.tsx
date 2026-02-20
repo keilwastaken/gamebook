@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react";
 import {
   ActivityIndicator,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -8,10 +9,16 @@ import {
 } from "react-native";
 
 import { palette } from "@/constants/palette";
-import { TicketCard } from "@/components/cards";
+import {
+  MinimalCard,
+  PolaroidCard,
+  PostcardCard,
+  TicketCard,
+  WidgetCard,
+} from "@/components/cards";
 import { JournalOverlay } from "@/components/journal-overlay";
 import { useGamesContext } from "@/lib/games-context";
-import type { Game } from "@/lib/types";
+import { DEFAULT_TICKET_TYPE, type Game } from "@/lib/types";
 
 export default function HomeScreen() {
   const { playingGames, loading, saveNote } = useGamesContext();
@@ -37,6 +44,49 @@ export default function HomeScreen() {
   const handleCloseJournal = useCallback(() => {
     setActiveGame(null);
   }, []);
+
+  const renderCard = useCallback(
+    (game: Game, index: number) => {
+      const ticketType = game.ticketType ?? DEFAULT_TICKET_TYPE;
+      const baseProps = { game, seed: index + 1 };
+
+      if (ticketType === "ticket") {
+        return (
+          <TicketCard
+            key={game.id}
+            game={game}
+            onPress={handleAddNote}
+            seed={index + 1}
+          />
+        );
+      }
+
+      const card =
+        ticketType === "postcard" ? (
+          <PostcardCard {...baseProps} />
+        ) : ticketType === "widget" ? (
+          <WidgetCard {...baseProps} />
+        ) : ticketType === "minimal" ? (
+          <MinimalCard {...baseProps} />
+        ) : (
+          <PolaroidCard {...baseProps} />
+        );
+
+      return (
+        <Pressable
+          key={game.id}
+          onPress={() => handleAddNote(game.id)}
+          testID={`playing-card-add-${game.id}`}
+          accessibilityLabel={`Update bookmark for ${game.title}`}
+          accessibilityRole="button"
+          style={styles.cardPressable}
+        >
+          <View testID={`playing-card-${game.id}`}>{card}</View>
+        </Pressable>
+      );
+    },
+    [handleAddNote]
+  );
 
   return (
     <>
@@ -67,14 +117,7 @@ export default function HomeScreen() {
           </View>
         ) : (
           <View style={styles.ticketGrid}>
-            {playingGames.map((game, index) => (
-              <TicketCard
-                key={game.id}
-                game={game}
-                onPress={handleAddNote}
-                seed={index + 1}
-              />
-            ))}
+            {playingGames.map((game, index) => renderCard(game, index))}
           </View>
         )}
       </ScrollView>
@@ -138,5 +181,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 16,
+  },
+  cardPressable: {
+    alignSelf: "flex-start",
   },
 });

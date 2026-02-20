@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import type { Game, GameNote } from "./types";
+import { DEFAULT_TICKET_TYPE, type Game, type GameNote } from "./types";
 
 const STORAGE_KEY = "@gamebook/games";
 
@@ -8,6 +8,7 @@ const SEED_GAMES: Game[] = [
   {
     id: "seed-stardew",
     title: "Stardew Valley",
+    ticketType: DEFAULT_TICKET_TYPE,
     playtime: "24h 12m",
     progress: 0.6,
     status: "playing",
@@ -22,6 +23,7 @@ const SEED_GAMES: Game[] = [
   {
     id: "seed-spiritfarer",
     title: "Spiritfarer",
+    ticketType: DEFAULT_TICKET_TYPE,
     playtime: "8h 45m",
     progress: 0.3,
     status: "playing",
@@ -40,7 +42,11 @@ async function loadGames(): Promise<Game[]> {
   try {
     const raw = await AsyncStorage.getItem(STORAGE_KEY);
     if (raw) {
-      return JSON.parse(raw) as Game[];
+      const parsed = JSON.parse(raw) as Game[];
+      return parsed.map((game) => ({
+        ...game,
+        ticketType: game.ticketType ?? DEFAULT_TICKET_TYPE,
+      }));
     }
   } catch {
     // Fall through to seed data
@@ -99,6 +105,7 @@ export function useGames() {
       progress: number;
       whereLeftOff: string;
       quickThought?: string;
+      ticketType?: Game["ticketType"];
     }): Promise<Game> => {
       const ts = Date.now();
       const noteId = `note-${ts}`;
@@ -113,6 +120,7 @@ export function useGames() {
       const newGame: Game = {
         id: gameId,
         title: input.title.trim(),
+        ticketType: input.ticketType ?? DEFAULT_TICKET_TYPE,
         progress: input.progress,
         status: "playing",
         lastNote: newNote,

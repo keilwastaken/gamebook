@@ -1,3 +1,12 @@
+export type TicketType =
+  | "polaroid"
+  | "postcard"
+  | "widget"
+  | "ticket"
+  | "minimal";
+
+export const DEFAULT_TICKET_TYPE: TicketType = "polaroid";
+
 export interface GameNote {
   id: string;
   timestamp: number;
@@ -9,6 +18,7 @@ export interface GameNote {
 export interface Game {
   id: string;
   title: string;
+  ticketType?: TicketType;
   imageUri?: string;
   playtime?: string;
   progress: number;

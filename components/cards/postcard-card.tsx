@@ -48,6 +48,7 @@ export function PostcardCard({
             />
           </View>
           <View style={styles.textBox}>
+            <View style={styles.stamp} />
             <Text style={styles.to}>TO: PLAYER 1</Text>
             <Text style={styles.title} numberOfLines={2}>
               {game.title}
@@ -69,7 +70,7 @@ const styles = StyleSheet.create({
     padding: 4,
     width: 220,
     borderWidth: 1,
-    borderColor: "rgba(68, 88, 57, 0.06)",
+    borderColor: "rgba(68, 88, 57, 0.15)",
   },
   tape: {
     position: "absolute",
@@ -109,6 +110,20 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 4,
     justifyContent: "center",
+    borderLeftWidth: 1,
+    borderLeftColor: "rgba(125, 112, 99, 0.18)",
+    paddingLeft: 8,
+  },
+  stamp: {
+    position: "absolute",
+    top: 4,
+    right: 4,
+    width: 18,
+    height: 18,
+    borderWidth: 1,
+    borderStyle: "dashed",
+    borderColor: palette.clay[300],
+    backgroundColor: palette.clay[50],
   },
   to: {
     fontSize: 9,

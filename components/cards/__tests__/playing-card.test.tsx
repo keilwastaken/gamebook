@@ -7,13 +7,11 @@ const MOCK_GAME: Game = {
   id: "test-1",
   title: "Stardew Valley",
   playtime: "24h",
-  progress: 0.6,
   status: "playing",
   lastNote: {
     id: "n1",
     timestamp: Date.now(),
     whereLeftOff: "Finished the mines",
-    progress: 0.6,
   },
   notes: [],
 };
@@ -26,10 +24,10 @@ describe("PlayingCard", () => {
     expect(screen.getByText("24h")).toBeTruthy();
   });
 
-  it("shows progress percentage", () => {
+  it("shows last note date metadata", () => {
     render(<PlayingCard game={MOCK_GAME} onAddNote={jest.fn()} />);
 
-    expect(screen.getByText("60%")).toBeTruthy();
+    expect(screen.getByText(/Last note/i)).toBeTruthy();
   });
 
   it("renders last note preview", () => {

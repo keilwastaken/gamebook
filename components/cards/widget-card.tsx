@@ -46,6 +46,7 @@ export function WidgetCard({
         />
       </View>
       <View style={[styles.card, CozyShadows.liftedBottom]}>
+        <View style={styles.foldCorner} />
         <Text style={styles.header}>Playing...</Text>
         <View style={styles.row}>
           <View style={styles.thumb}>
@@ -64,6 +65,8 @@ export function WidgetCard({
             </Text>
           </View>
         </View>
+        <View style={styles.rule} />
+        <View style={styles.rule} />
       </View>
     </View>
   );
@@ -86,11 +89,23 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   card: {
-    backgroundColor: "#FEF9C3",
+    backgroundColor: palette.warm[100],
     padding: 12,
     width: 150,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(234, 179, 8, 0.3)",
+    borderBottomColor: "rgba(166, 124, 82, 0.25)",
+    borderRadius: 4,
+  },
+  foldCorner: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    width: 0,
+    height: 0,
+    borderTopWidth: 16,
+    borderLeftWidth: 16,
+    borderTopColor: palette.warm[50],
+    borderLeftColor: "transparent",
   },
   header: {
     fontSize: 12,
@@ -126,5 +141,10 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: palette.text.secondary,
     marginTop: 2,
+  },
+  rule: {
+    height: 1,
+    backgroundColor: "rgba(125, 112, 99, 0.2)",
+    marginTop: 6,
   },
 });

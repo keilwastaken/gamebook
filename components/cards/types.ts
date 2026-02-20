@@ -3,8 +3,7 @@ export interface GameCardData {
   imageUri?: string;
   /** Playtime string e.g. "24h 12m" */
   playtime?: string;
-  /** Progress 0-1 for minimal card */
-  progress?: number;
+  notePreview?: string;
 }
 
 const ROTATION_MIN = -2;

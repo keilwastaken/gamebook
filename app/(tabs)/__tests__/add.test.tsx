@@ -65,7 +65,7 @@ describe("AddScreen", () => {
     expect(saveButton.props.accessibilityState?.disabled).toBeFalsy();
   });
 
-  it("renders progress slider and optional quick thought", async () => {
+  it("renders optional quick thought", async () => {
     render(<AddScreenWithProvider />);
     await waitFor(() => expect(screen.getByTestId("add-thought-input")).toBeTruthy());
   });

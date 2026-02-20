@@ -37,8 +37,6 @@ export function PlayingCard({ game, onAddNote }: PlayingCardProps) {
     }).start();
   };
 
-  const progressPercent = Math.round((game.progress ?? 0) * 100);
-
   return (
     <View style={styles.wrapper} testID={`playing-card-${game.id}`}>
       <View style={[styles.card, CozyShadows.base]}>
@@ -51,17 +49,11 @@ export function PlayingCard({ game, onAddNote }: PlayingCardProps) {
               <Text style={styles.playtime}>{game.playtime}</Text>
             )}
           </View>
-          <View style={styles.progressRow}>
-            <View style={styles.progressTrack}>
-              <View
-                style={[
-                  styles.progressFill,
-                  { width: `${progressPercent}%` },
-                ]}
-              />
-            </View>
-            <Text style={styles.progressLabel}>{progressPercent}%</Text>
-          </View>
+          <Text style={styles.metaText}>
+            {game.lastNote
+              ? `Last note ${new Date(game.lastNote.timestamp).toLocaleDateString()}`
+              : "Ready for your first bookmark"}
+          </Text>
         </View>
 
         {game.lastNote && (
@@ -124,30 +116,10 @@ const styles = StyleSheet.create({
     fontFamily: "Nunito",
     color: palette.text.secondary,
   },
-  progressRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  progressTrack: {
-    flex: 1,
-    height: 6,
-    backgroundColor: palette.warm[200],
-    borderRadius: 3,
-    overflow: "hidden",
-  },
-  progressFill: {
-    height: "100%",
-    backgroundColor: palette.sage[400],
-    borderRadius: 3,
-  },
-  progressLabel: {
+  metaText: {
     fontSize: 11,
     fontFamily: "Nunito",
-    fontWeight: "600",
-    color: palette.sage[500],
-    minWidth: 32,
-    textAlign: "right",
+    color: palette.text.secondary,
   },
   notePreview: {
     backgroundColor: palette.warm[100],

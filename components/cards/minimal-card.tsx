@@ -28,10 +28,10 @@ export function MinimalCard({
   const imageSource = game.imageUri
     ? { uri: game.imageUri }
     : { uri: PLACEHOLDER_IMAGE };
-  const progress = game.progress ?? 0.75;
 
   return (
     <View style={[styles.wrapper, { transform: [{ rotate: `${rotation}deg` }] }]}>
+      <View style={styles.clip} />
       <View
         style={[
           styles.card,
@@ -50,11 +50,9 @@ export function MinimalCard({
           <Text style={styles.title} numberOfLines={1}>
             {game.title}
           </Text>
-          <View style={styles.progressTrack}>
-            <View
-              style={[styles.progressFill, { width: `${progress * 100}%` }]}
-            />
-          </View>
+          <Text style={styles.metaText} numberOfLines={1}>
+            {game.notePreview ?? game.playtime ?? "Now playing"}
+          </Text>
         </View>
       </View>
     </View>
@@ -64,6 +62,17 @@ export function MinimalCard({
 const styles = StyleSheet.create({
   wrapper: {
     alignSelf: "flex-start",
+    paddingTop: 6,
+  },
+  clip: {
+    position: "absolute",
+    top: 0,
+    right: 16,
+    width: 18,
+    height: 10,
+    borderRadius: 3,
+    backgroundColor: palette.warm[300],
+    zIndex: 2,
   },
   card: {
     flexDirection: "row",
@@ -71,10 +80,10 @@ const styles = StyleSheet.create({
     gap: 14,
     padding: 12,
     width: 220,
-    backgroundColor: "rgba(255, 255, 255, 0.9)",
+    backgroundColor: palette.warm[50],
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.5)",
+    borderColor: "rgba(125, 112, 99, 0.18)",
   },
   thumb: {
     width: 48,
@@ -95,16 +104,9 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: palette.text.primary,
   },
-  progressTrack: {
-    height: 6,
-    backgroundColor: palette.sage[300],
-    borderRadius: 3,
+  metaText: {
+    fontSize: 11,
+    color: palette.text.secondary,
     marginTop: 6,
-    overflow: "hidden",
-  },
-  progressFill: {
-    height: "100%",
-    backgroundColor: palette.sage[500],
-    borderRadius: 3,
   },
 });

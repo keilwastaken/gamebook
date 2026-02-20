@@ -12,7 +12,6 @@ export interface GameNote {
   timestamp: number;
   whereLeftOff: string;
   quickThought?: string;
-  progress: number;
 }
 
 export interface Game {
@@ -21,7 +20,6 @@ export interface Game {
   ticketType?: TicketType;
   imageUri?: string;
   playtime?: string;
-  progress: number;
   status: "playing" | "backlog" | "finished" | "dropped";
   lastNote?: GameNote;
   notes: GameNote[];

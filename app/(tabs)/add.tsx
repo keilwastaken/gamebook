@@ -57,7 +57,6 @@ export default function AddScreen() {
     setSaving(true);
     await addGameWithInitialNote({
       title: title.trim(),
-      progress: 0,
       whereLeftOff: whereLeftOff.trim(),
       quickThought: quickThought.trim() || undefined,
       ticketType,

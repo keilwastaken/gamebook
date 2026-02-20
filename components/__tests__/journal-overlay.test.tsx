@@ -12,7 +12,6 @@ jest.mock("expo-haptics", () => ({
 const MOCK_GAME: Game = {
   id: "test-1",
   title: "Spiritfarer",
-  progress: 0.3,
   status: "playing",
   notes: [],
 };
@@ -63,7 +62,6 @@ describe("JournalOverlay", () => {
       <JournalOverlay game={MOCK_GAME} onSave={jest.fn()} onClose={jest.fn()} />
     );
 
-    expect(screen.getByText("JOURNEY PROGRESS")).toBeTruthy();
     expect(screen.getByText("WHERE I LEFT OFF")).toBeTruthy();
     expect(screen.getByText("QUICK THOUGHT")).toBeTruthy();
   });

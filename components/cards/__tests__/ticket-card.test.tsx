@@ -7,13 +7,11 @@ const MOCK_GAME: Game = {
   id: "test-1",
   title: "Stardew Valley",
   playtime: "24h",
-  progress: 0.6,
   status: "playing",
   lastNote: {
     id: "n1",
     timestamp: Date.now(),
     whereLeftOff: "Finished the mines",
-    progress: 0.6,
   },
   notes: [],
 };

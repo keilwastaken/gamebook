@@ -8,31 +8,66 @@ const SEED_GAMES: Game[] = [
   {
     id: "seed-stardew",
     title: "Stardew Valley",
-    ticketType: DEFAULT_TICKET_TYPE,
+    ticketType: "polaroid",
     playtime: "24h 12m",
-    progress: 0.6,
     status: "playing",
     lastNote: {
       id: "note-1",
       timestamp: Date.now() - 86400000,
       whereLeftOff: "Just finished the Community Center bundles, heading to Ginger Island next",
-      progress: 0.6,
     },
     notes: [],
   },
   {
     id: "seed-spiritfarer",
     title: "Spiritfarer",
-    ticketType: DEFAULT_TICKET_TYPE,
+    ticketType: "postcard",
     playtime: "8h 45m",
-    progress: 0.3,
     status: "playing",
     lastNote: {
       id: "note-2",
       timestamp: Date.now() - 172800000,
       whereLeftOff: "Atul just left... need a moment before continuing",
       quickThought: "This game makes me feel things",
-      progress: 0.3,
+    },
+    notes: [],
+  },
+  {
+    id: "seed-hades",
+    title: "Hades II",
+    ticketType: "widget",
+    playtime: "6h 10m",
+    status: "playing",
+    lastNote: {
+      id: "note-3",
+      timestamp: Date.now() - 3600000 * 30,
+      whereLeftOff: "Unlocked new Arcana cards and beat Chronos phase one",
+    },
+    notes: [],
+  },
+  {
+    id: "seed-celeste",
+    title: "Celeste",
+    ticketType: "ticket",
+    playtime: "3h 55m",
+    status: "playing",
+    lastNote: {
+      id: "note-4",
+      timestamp: Date.now() - 3600000 * 12,
+      whereLeftOff: "Reached Reflection and found two hidden strawberries",
+    },
+    notes: [],
+  },
+  {
+    id: "seed-outerwilds",
+    title: "Outer Wilds",
+    ticketType: "minimal",
+    playtime: "11h 03m",
+    status: "playing",
+    lastNote: {
+      id: "note-5",
+      timestamp: Date.now() - 3600000 * 54,
+      whereLeftOff: "Tracked signal to Dark Bramble and marked the vessel route",
     },
     notes: [],
   },
@@ -87,7 +122,6 @@ export function useGames() {
           };
           return {
             ...g,
-            progress: note.progress,
             lastNote: newNote,
             notes: [newNote, ...g.notes],
           };
@@ -102,7 +136,6 @@ export function useGames() {
   const addGameWithInitialNote = useCallback(
     async (input: {
       title: string;
-      progress: number;
       whereLeftOff: string;
       quickThought?: string;
       ticketType?: Game["ticketType"];
@@ -115,13 +148,11 @@ export function useGames() {
         timestamp: ts,
         whereLeftOff: input.whereLeftOff.trim(),
         quickThought: input.quickThought?.trim() || undefined,
-        progress: input.progress,
       };
       const newGame: Game = {
         id: gameId,
         title: input.title.trim(),
         ticketType: input.ticketType ?? DEFAULT_TICKET_TYPE,
-        progress: input.progress,
         status: "playing",
         lastNote: newNote,
         notes: [newNote],

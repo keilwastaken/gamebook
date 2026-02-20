@@ -20,13 +20,11 @@ export interface JournalOverlayProps {
   onSave: (note: {
     whereLeftOff: string;
     quickThought?: string;
-    progress: number;
   }) => void;
   onClose: () => void;
 }
 
 export function JournalOverlay({ game, onSave, onClose }: JournalOverlayProps) {
-  const [progress, setProgress] = useState(game.progress ?? 0);
   const [whereLeftOff, setWhereLeftOff] = useState("");
   const [quickThought, setQuickThought] = useState("");
   const [saving, setSaving] = useState(false);
@@ -53,11 +51,6 @@ export function JournalOverlay({ game, onSave, onClose }: JournalOverlayProps) {
       whereInputRef.current?.focus();
     });
   }, [fadeAnim, slideAnim]);
-
-  const handleProgressChange = (value: number) => {
-    setProgress(value);
-    Haptics.selectionAsync();
-  };
 
   const handleSave = async () => {
     if (!whereLeftOff.trim()) return;
@@ -87,7 +80,6 @@ export function JournalOverlay({ game, onSave, onClose }: JournalOverlayProps) {
       onSave({
         whereLeftOff: whereLeftOff.trim(),
         quickThought: quickThought.trim() || undefined,
-        progress,
       });
     });
   };
@@ -108,8 +100,6 @@ export function JournalOverlay({ game, onSave, onClose }: JournalOverlayProps) {
       onClose();
     });
   };
-
-  const progressPercent = Math.round(progress * 100);
 
   return (
     <Animated.View
@@ -136,15 +126,6 @@ export function JournalOverlay({ game, onSave, onClose }: JournalOverlayProps) {
             <View style={styles.handle} />
 
             <Text style={styles.gameTitle}>{game.title}</Text>
-            <Text style={styles.sectionLabel}>JOURNEY PROGRESS</Text>
-
-            <View style={styles.sliderRow}>
-              <ProgressSlider
-                value={progress}
-                onValueChange={handleProgressChange}
-              />
-              <Text style={styles.progressText}>{progressPercent}%</Text>
-            </View>
 
             <Text style={styles.sectionLabel}>WHERE I LEFT OFF</Text>
             <TextInput
@@ -179,38 +160,6 @@ export function JournalOverlay({ game, onSave, onClose }: JournalOverlayProps) {
         </Animated.View>
       </KeyboardAvoidingView>
     </Animated.View>
-  );
-}
-
-function ProgressSlider({
-  value,
-  onValueChange,
-}: {
-  value: number;
-  onValueChange: (v: number) => void;
-}) {
-  const trackRef = useRef<View>(null);
-
-  const handleTouch = (pageX: number) => {
-    trackRef.current?.measure((_x, _y, width, _h, px) => {
-      const clamped = Math.max(0, Math.min(1, (pageX - px) / width));
-      onValueChange(Math.round(clamped * 20) / 20);
-    });
-  };
-
-  return (
-    <View
-      ref={trackRef}
-      style={styles.sliderTrack}
-      onStartShouldSetResponder={() => true}
-      onMoveShouldSetResponder={() => true}
-      onResponderGrant={(e) => handleTouch(e.nativeEvent.pageX)}
-      onResponderMove={(e) => handleTouch(e.nativeEvent.pageX)}
-    >
-      <View style={[styles.sliderFill, { width: `${value * 100}%` }]}>
-        <View style={styles.sliderThumb} />
-      </View>
-    </View>
   );
 }
 
@@ -311,43 +260,6 @@ const styles = StyleSheet.create({
     color: palette.sage[400],
     letterSpacing: 1,
     marginBottom: 8,
-  },
-  sliderRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    marginBottom: 20,
-  },
-  sliderTrack: {
-    flex: 1,
-    height: 8,
-    backgroundColor: palette.warm[200],
-    borderRadius: 4,
-    justifyContent: "center",
-  },
-  sliderFill: {
-    height: "100%",
-    backgroundColor: palette.sage[400],
-    borderRadius: 4,
-    alignItems: "flex-end",
-    justifyContent: "center",
-  },
-  sliderThumb: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: palette.sage[500],
-    borderWidth: 3,
-    borderColor: palette.cream.DEFAULT,
-    marginRight: -10,
-  },
-  progressText: {
-    fontSize: 14,
-    fontWeight: "700",
-    fontFamily: "Nunito",
-    color: palette.sage[500],
-    minWidth: 40,
-    textAlign: "right",
   },
   textInput: {
     backgroundColor: palette.warm[50],

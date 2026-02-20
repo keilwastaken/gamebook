@@ -26,8 +26,8 @@ describe("useGames", () => {
 
     await waitFor(() => expect(result.current.loading).toBe(false));
 
-    expect(result.current.games.length).toBe(2);
-    expect(result.current.playingGames.length).toBe(2);
+    expect(result.current.games.length).toBe(5);
+    expect(result.current.playingGames.length).toBe(5);
     expect(mockSetItem).toHaveBeenCalled();
   });
 
@@ -36,7 +36,6 @@ describe("useGames", () => {
       {
         id: "g1",
         title: "Test Game",
-        progress: 0.5,
         status: "playing",
         notes: [],
       },
@@ -56,8 +55,8 @@ describe("useGames", () => {
 
   it("filters playingGames by status", async () => {
     const stored = [
-      { id: "g1", title: "Playing", progress: 0.5, status: "playing", notes: [] },
-      { id: "g2", title: "Finished", progress: 1, status: "finished", notes: [] },
+      { id: "g1", title: "Playing", status: "playing", notes: [] },
+      { id: "g2", title: "Finished", status: "finished", notes: [] },
     ];
     mockGetItem.mockResolvedValue(JSON.stringify(stored));
 
@@ -69,9 +68,9 @@ describe("useGames", () => {
     expect(result.current.playingGames[0].title).toBe("Playing");
   });
 
-  it("saveNote persists a new note and updates progress", async () => {
+  it("saveNote persists a new note", async () => {
     const stored = [
-      { id: "g1", title: "Game", progress: 0.3, status: "playing", notes: [] },
+      { id: "g1", title: "Game", status: "playing", notes: [] },
     ];
     mockGetItem.mockResolvedValue(JSON.stringify(stored));
 
@@ -83,12 +82,10 @@ describe("useGames", () => {
       await result.current.saveNote("g1", {
         whereLeftOff: "At the castle",
         quickThought: "Love it",
-        progress: 0.7,
       });
     });
 
     const updated = result.current.games[0];
-    expect(updated.progress).toBe(0.7);
     expect(updated.lastNote?.whereLeftOff).toBe("At the castle");
     expect(updated.lastNote?.quickThought).toBe("Love it");
     expect(updated.notes.length).toBe(1);
@@ -106,7 +103,6 @@ describe("useGames", () => {
     await act(async () => {
       newGame = await result.current.addGameWithInitialNote!({
         title: "New Game",
-        progress: 0.25,
         whereLeftOff: "Just started",
         quickThought: "Excited",
       });
@@ -117,7 +113,6 @@ describe("useGames", () => {
     expect(game.title).toBe("New Game");
     expect(game.status).toBe("playing");
     expect(game.ticketType).toBe(DEFAULT_TICKET_TYPE);
-    expect(game.progress).toBe(0.25);
     expect(game.lastNote?.whereLeftOff).toBe("Just started");
     expect(game.lastNote?.quickThought).toBe("Excited");
     expect(game.notes.length).toBe(1);
@@ -136,14 +131,13 @@ describe("useGames", () => {
     await act(async () => {
       await result.current.addGameWithInitialNote!({
         title: "Persisted",
-        progress: 0.5,
         whereLeftOff: "Mid game",
       });
     });
 
     expect(mockSetItem).toHaveBeenCalled();
     const stored = JSON.parse(mockSetItem.mock.calls[mockSetItem.mock.calls.length - 1][1]);
-    expect(stored.length).toBe(3); // 2 seed + 1 new
+    expect(stored.length).toBe(6); // 5 seed + 1 new
     const added = stored.find((g: { title: string }) => g.title === "Persisted");
     expect(added).toBeDefined();
     expect(added.lastNote.whereLeftOff).toBe("Mid game");

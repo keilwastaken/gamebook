@@ -33,7 +33,7 @@ export default function HomeScreen() {
   );
 
   const handleSaveNote = useCallback(
-    async (note: { whereLeftOff: string; quickThought?: string; progress: number }) => {
+    async (note: { whereLeftOff: string; quickThought?: string }) => {
       if (!activeGame) return;
       await saveNote(activeGame.id, note);
       setActiveGame(null);
@@ -48,7 +48,11 @@ export default function HomeScreen() {
   const renderCard = useCallback(
     (game: Game, index: number) => {
       const ticketType = game.ticketType ?? DEFAULT_TICKET_TYPE;
-      const baseProps = { game, seed: index + 1 };
+      const cardData = {
+        ...game,
+        notePreview: game.lastNote?.whereLeftOff,
+      };
+      const baseProps = { game: cardData, seed: index + 1 };
 
       if (ticketType === "ticket") {
         return (
@@ -112,7 +116,7 @@ export default function HomeScreen() {
         ) : playingGames.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyText}>
-              No games in progress yet.{"\n"}Add one to start your journey!
+              No games pinned yet.{"\n"}Add one to start your journey!
             </Text>
           </View>
         ) : (

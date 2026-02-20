@@ -4,7 +4,14 @@ import { ThemedText } from "@/components/themed-text";
 
 export default function HomeScreen() {
   return (
-    <View className="flex-1 items-center justify-center">
+    <View
+      style={{
+        flex: 1,
+        alignItems: "center",
+        justifyContent: "center",
+        backgroundColor: "transparent",
+      }}
+    >
       <ThemedText type="title">Home</ThemedText>
     </View>
   );

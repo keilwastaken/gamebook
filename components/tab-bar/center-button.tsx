@@ -48,7 +48,14 @@ export function CenterButton({ size, onPress }: CenterButtonProps) {
   };
 
   return (
-    <View className="flex-1 items-center justify-center mb-[8%]">
+    <View
+      style={{
+        flex: 1,
+        alignItems: "center",
+        justifyContent: "center",
+        marginBottom: "8%",
+      }}
+    >
       <Pressable
         onPress={onPress}
         onPressIn={handlePressIn}

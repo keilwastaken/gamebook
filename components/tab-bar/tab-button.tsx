@@ -49,12 +49,19 @@ export function TabButton({
       onPress={onPress}
       onPressIn={handlePressIn}
       onPressOut={handlePressOut}
-      className="flex-1 items-center justify-center"
+      style={{
+        flex: 1,
+        alignItems: "center",
+        justifyContent: "center",
+      }}
     >
       <Animated.View
-        className="items-center justify-center"
         style={[
-          { transform: [{ scale: scaleAnim }] },
+          {
+            alignItems: "center",
+            justifyContent: "center",
+            transform: [{ scale: scaleAnim }],
+          },
           isFocused && {
             shadowColor: activeIconShadowColor,
             shadowOffset: { width: 0, height: 6 },

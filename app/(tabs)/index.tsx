@@ -24,7 +24,6 @@ import { useGamesContext } from "@/lib/games-context";
 import {
   applyBoardLayout,
   constrainSpanForCard,
-  getAxisIntentSpan,
   getCardSpan,
 } from "@/lib/board-layout";
 import { DEFAULT_TICKET_TYPE, type Game, type TicketType } from "@/lib/types";
@@ -42,7 +41,6 @@ export default function HomeScreen() {
   const { playingGames, loading, saveNote, moveGameToBoardTarget } = useGamesContext();
   const [activeGame, setActiveGame] = useState<Game | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
-  const [, setDragSpan] = useState<{ w: number; h: number }>({ w: 1, h: 1 });
   const [dragVisualSpan, setDragVisualSpan] = useState<{ w: number; h: number }>({
     w: 1,
     h: 1,
@@ -57,13 +55,16 @@ export default function HomeScreen() {
   } | null>(null);
   const consumeNextPress = useRef(false);
   const dragSpanRef = useRef<{ w: number; h: number }>({ w: 1, h: 1 });
-  const pendingSpanRef = useRef<{ w: number; h: number } | null>(null);
-  const pendingSpanAtRef = useRef(0);
+  const targetSlotRef = useRef<{ x: number; y: number } | null>(null);
   const boardRef = useRef<View>(null);
   const boardOriginRef = useRef({ x: 0, y: 0 });
   const dragOffsetRef = useRef({ x: 0, y: 0 });
   const dropTargetKeyRef = useRef("");
   const dragXY = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
+  const dropTargetLeft = useRef(new Animated.Value(0)).current;
+  const dropTargetTop = useRef(new Animated.Value(0)).current;
+  const dropTargetWidth = useRef(new Animated.Value(0)).current;
+  const dropTargetHeight = useRef(new Animated.Value(0)).current;
   const { width } = useWindowDimensions();
   const boardColumns = 4;
   const boardWidth = Math.max(200, width - 32);
@@ -117,29 +118,44 @@ export default function HomeScreen() {
     [cellWidth, rowHeight]
   );
 
-  const maybeApplyDragSpan = useCallback((candidate: { w: number; h: number }) => {
-    const current = dragSpanRef.current;
-    if (candidate.w === current.w && candidate.h === current.h) {
-      pendingSpanRef.current = null;
-      return current;
-    }
+  const animateDropTargetTo = useCallback(
+    (target: { x: number; y: number; w: number; h: number }, immediate = false) => {
+      const toLeft = target.x * (cellWidth + BOARD_GAP);
+      const toTop = target.y * (rowHeight + BOARD_GAP);
+      const toWidth = target.w * cellWidth + (target.w - 1) * BOARD_GAP;
+      const toHeight = target.h * rowHeight + (target.h - 1) * BOARD_GAP;
 
-    const now = Date.now();
-    const pending = pendingSpanRef.current;
-    if (pending && pending.w === candidate.w && pending.h === candidate.h) {
-      if (now - pendingSpanAtRef.current >= 120) {
-        dragSpanRef.current = candidate;
-        setDragSpan(candidate);
-        pendingSpanRef.current = null;
-        return candidate;
+      if (immediate) {
+        dropTargetLeft.setValue(toLeft);
+        dropTargetTop.setValue(toTop);
+        dropTargetWidth.setValue(toWidth);
+        dropTargetHeight.setValue(toHeight);
+        return;
       }
-      return current;
-    }
 
-    pendingSpanRef.current = candidate;
-    pendingSpanAtRef.current = now;
-    return current;
-  }, []);
+      const springConfig = {
+        damping: 24,
+        stiffness: 260,
+        mass: 0.6,
+        useNativeDriver: false as const,
+      };
+
+      Animated.parallel([
+        Animated.spring(dropTargetLeft, { toValue: toLeft, ...springConfig }),
+        Animated.spring(dropTargetTop, { toValue: toTop, ...springConfig }),
+        Animated.spring(dropTargetWidth, { toValue: toWidth, ...springConfig }),
+        Animated.spring(dropTargetHeight, { toValue: toHeight, ...springConfig }),
+      ]).start();
+    },
+    [
+      cellWidth,
+      rowHeight,
+      dropTargetLeft,
+      dropTargetTop,
+      dropTargetWidth,
+      dropTargetHeight,
+    ]
+  );
 
   const handleAddNote = useCallback(
     (gameId: string) => {
@@ -164,38 +180,22 @@ export default function HomeScreen() {
 
   const stopDragging = useCallback(() => {
     setDraggingId(null);
-    setDragSpan({ w: 1, h: 1 });
     setDragVisualSpan({ w: 1, h: 1 });
     setDragVisualScale(1);
     dragSpanRef.current = { w: 1, h: 1 };
-    pendingSpanRef.current = null;
-    pendingSpanAtRef.current = 0;
+    targetSlotRef.current = null;
     setDropTarget(null);
     dropTargetKeyRef.current = "";
   }, []);
 
   const updateDropTarget = useCallback(
-    (left: number, top: number, pointerX: number, pointerY: number) => {
+    (left: number, top: number) => {
       if (!draggingId) return;
-      const moving = boardGames.find((game) => game.id === draggingId);
-      const ticketType = moving?.ticketType ?? DEFAULT_TICKET_TYPE;
-      const desiredSpan = {
-        w: Math.max(
-          1,
-          Math.min(
-            boardColumns,
-            getAxisIntentSpan(pointerX, cellWidth + BOARD_GAP, boardColumns)
-          )
-        ),
-        h: Math.max(1, getAxisIntentSpan(pointerY, rowHeight + BOARD_GAP)),
-      };
-      const constrained = constrainSpanForCard(ticketType, desiredSpan, boardColumns);
-      const span = maybeApplyDragSpan(constrained);
+      const span = dragSpanRef.current;
       const strideX = cellWidth + BOARD_GAP;
       const strideY = rowHeight + BOARD_GAP;
       const dragWidth = span.w * cellWidth + (span.w - 1) * BOARD_GAP;
       const dragHeight = span.h * rowHeight + (span.h - 1) * BOARD_GAP;
-      const dragRect = { left, top, right: left + dragWidth, bottom: top + dragHeight };
       const dragCenterX = left + dragWidth / 2;
       const dragCenterY = top + dragHeight / 2;
       const maxRowsToScan = Math.max(
@@ -204,62 +204,64 @@ export default function HomeScreen() {
         6
       );
 
-      let bestSlot: { x: number; y: number; overlap: number; centerDistance: number } | null = null;
+      let bestSlot: { x: number; y: number; distSq: number } | null = null;
       for (let candidateY = 0; candidateY <= maxRowsToScan; candidateY += 1) {
         for (let candidateX = 0; candidateX <= boardColumns - span.w; candidateX += 1) {
-          const slotLeft = candidateX * strideX;
-          const slotTop = candidateY * strideY;
-          const slotRight = slotLeft + dragWidth;
-          const slotBottom = slotTop + dragHeight;
-          const overlapWidth = Math.max(
-            0,
-            Math.min(dragRect.right, slotRight) - Math.max(dragRect.left, slotLeft)
-          );
-          const overlapHeight = Math.max(
-            0,
-            Math.min(dragRect.bottom, slotBottom) - Math.max(dragRect.top, slotTop)
-          );
-          const overlap = overlapWidth * overlapHeight;
-          const centerDistance =
-            Math.abs(dragCenterX - (slotLeft + dragWidth / 2)) +
-            Math.abs(dragCenterY - (slotTop + dragHeight / 2));
+          const slotCenterX = candidateX * strideX + dragWidth / 2;
+          const slotCenterY = candidateY * strideY + dragHeight / 2;
+          const dx = dragCenterX - slotCenterX;
+          const dy = dragCenterY - slotCenterY;
+          const distSq = dx * dx + dy * dy;
 
-          if (
-            !bestSlot ||
-            overlap > bestSlot.overlap ||
-            (overlap === bestSlot.overlap && centerDistance < bestSlot.centerDistance)
-          ) {
+          if (!bestSlot || distSq < bestSlot.distSq) {
             bestSlot = {
               x: candidateX,
               y: candidateY,
-              overlap,
-              centerDistance,
+              distSq,
             };
           }
         }
       }
 
-      const desiredX = bestSlot?.x ?? 0;
-      const desiredY = bestSlot?.y ?? 0;
+      let desiredX = bestSlot?.x ?? 0;
+      let desiredY = bestSlot?.y ?? 0;
+
+      const currentSlot = targetSlotRef.current;
+      if (currentSlot && (currentSlot.x !== desiredX || currentSlot.y !== desiredY)) {
+        const currentCenterX = currentSlot.x * strideX + dragWidth / 2;
+        const currentCenterY = currentSlot.y * strideY + dragHeight / 2;
+        const currentDx = dragCenterX - currentCenterX;
+        const currentDy = dragCenterY - currentCenterY;
+        const currentDistSq = currentDx * currentDx + currentDy * currentDy;
+        const hysteresisSq = Math.pow(Math.min(strideX, strideY) * 0.2, 2);
+        const nextDistSq = bestSlot?.distSq ?? Number.MAX_SAFE_INTEGER;
+        if (nextDistSq + hysteresisSq >= currentDistSq) {
+          desiredX = currentSlot.x;
+          desiredY = currentSlot.y;
+        }
+      }
+
       const key = `${desiredX}-${desiredY}-${span.w}-${span.h}`;
       if (key !== dropTargetKeyRef.current) {
         dropTargetKeyRef.current = key;
-        setDropTarget({
+        const nextTarget = {
           x: desiredX,
           y: desiredY,
           w: span.w,
           h: span.h,
-        });
+        };
+        targetSlotRef.current = { x: desiredX, y: desiredY };
+        setDropTarget(nextTarget);
+        animateDropTargetTo(nextTarget);
       }
     },
     [
       draggingId,
-      boardGames,
       boardColumns,
       cellWidth,
       rowHeight,
       boardRows,
-      maybeApplyDragSpan,
+      animateDropTargetTo,
     ]
   );
 
@@ -283,8 +285,6 @@ export default function HomeScreen() {
         onPanResponderTerminationRequest: () => false,
         onPanResponderMove: (_evt, gestureState) => {
           if (!draggingId) return;
-          const pointerX = Math.max(0, gestureState.moveX - boardOriginRef.current.x);
-          const pointerY = Math.max(0, gestureState.moveY - boardOriginRef.current.y);
           const left = Math.max(
             0,
             gestureState.moveX - boardOriginRef.current.x - dragOffsetRef.current.x
@@ -294,7 +294,7 @@ export default function HomeScreen() {
             gestureState.moveY - boardOriginRef.current.y - dragOffsetRef.current.y
           );
           dragXY.setValue({ x: left, y: top });
-          updateDropTarget(left, top, pointerX, pointerY);
+          updateDropTarget(left, top);
         },
         onPanResponderRelease: () => {
           void handleDrop();
@@ -397,20 +397,25 @@ export default function HomeScreen() {
                     dragOffsetRef.current = { x: locationX, y: locationY };
                     dragXY.setValue({ x: slotLeft, y: slotTop });
                     setDraggingId(game.id);
-                    dragSpanRef.current = { w: board.w, h: board.h };
-                    pendingSpanRef.current = null;
-                    pendingSpanAtRef.current = 0;
-                    setDragSpan({ w: board.w, h: board.h });
-                    setDragVisualSpan({ w: board.w, h: board.h });
+                    const lockedSpan = constrainSpanForCard(
+                      ticketType,
+                      { w: board.w, h: board.h },
+                      boardColumns
+                    );
+                    dragSpanRef.current = lockedSpan;
+                    setDragVisualSpan(lockedSpan);
                     setDragVisualScale(scale);
                     setDragIndex(index);
-                    dropTargetKeyRef.current = `${board.x}-${board.y}-${board.w}-${board.h}`;
-                    setDropTarget({
+                    const initialTarget = {
                       x: board.x,
                       y: board.y,
-                      w: board.w,
-                      h: board.h,
-                    });
+                      w: lockedSpan.w,
+                      h: lockedSpan.h,
+                    };
+                    targetSlotRef.current = { x: board.x, y: board.y };
+                    dropTargetKeyRef.current = `${initialTarget.x}-${initialTarget.y}-${initialTarget.w}-${initialTarget.h}`;
+                    setDropTarget(initialTarget);
+                    animateDropTargetTo(initialTarget, true);
                   }}
                   delayLongPress={220}
                   testID={`playing-card-add-${game.id}`}
@@ -464,14 +469,14 @@ export default function HomeScreen() {
                   );
                 })}
                 {dropTarget ? (
-                  <View
+                  <Animated.View
                     style={[
                       styles.dropTarget,
                       {
-                        left: dropTarget.x * (cellWidth + BOARD_GAP),
-                        top: dropTarget.y * (rowHeight + BOARD_GAP),
-                        width: dropTarget.w * cellWidth + (dropTarget.w - 1) * BOARD_GAP,
-                        height: dropTarget.h * rowHeight + (dropTarget.h - 1) * BOARD_GAP,
+                        left: dropTargetLeft,
+                        top: dropTargetTop,
+                        width: dropTargetWidth,
+                        height: dropTargetHeight,
                       },
                     ]}
                   />

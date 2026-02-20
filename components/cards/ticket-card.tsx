@@ -11,9 +11,9 @@ import {
 
 import { palette } from "@/constants/palette";
 import { CozyShadows } from "@/utils/shadows";
+import { randomRotation } from "@/utils/random-rotation";
 import type { Game } from "@/lib/types";
 import { MountAdornment } from "./mount-adornment";
-import { randomRotation } from "./types";
 
 export interface TicketCardProps {
   game: Game;

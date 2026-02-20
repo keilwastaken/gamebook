@@ -9,6 +9,7 @@ import {
 
 import { palette } from "@/constants/palette";
 import { CozyShadows } from "@/utils/shadows";
+import { formatShortDate } from "@/utils/date-format";
 import type { Game } from "@/lib/types";
 
 export interface PlayingCardProps {
@@ -51,7 +52,7 @@ export function PlayingCard({ game, onAddNote }: PlayingCardProps) {
           </View>
           <Text style={styles.metaText}>
             {game.lastNote
-              ? `Last note ${new Date(game.lastNote.timestamp).toLocaleDateString()}`
+              ? `Last note ${formatShortDate(game.lastNote.timestamp)}`
               : "Ready for your first bookmark"}
           </Text>
         </View>

@@ -1,5 +1,5 @@
 export type { GameCardData } from "./types";
-export { randomRotation } from "./types";
+export { randomRotation } from "@/utils/random-rotation";
 export { PolaroidCard } from "./polaroid-card";
 export { PostcardCard } from "./postcard-card";
 export { WidgetCard } from "./widget-card";

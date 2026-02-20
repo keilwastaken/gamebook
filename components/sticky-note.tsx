@@ -8,15 +8,7 @@ import {
 } from "react-native";
 
 import { palette } from "@/constants/palette";
-
-// Slight random rotation for organic, hand-placed feel (-2° to 2°)
-const ROTATION_MIN = -2;
-const ROTATION_MAX = 2;
-
-function randomRotation(seed: number): number {
-  const x = Math.sin(seed * 12.9898) * 43758.5453;
-  return ROTATION_MIN + (x - Math.floor(x)) * (ROTATION_MAX - ROTATION_MIN);
-}
+import { randomRotation } from "@/utils/random-rotation";
 
 export interface StickyNoteProps {
   children: React.ReactNode;

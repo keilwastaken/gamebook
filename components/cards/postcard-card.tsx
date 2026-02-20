@@ -9,9 +9,9 @@ import {
 
 import { palette } from "@/constants/palette";
 import { CozyShadows } from "@/utils/shadows";
+import { randomRotation } from "@/utils/random-rotation";
 import type { GameCardData } from "./types";
 import { MountAdornment } from "./mount-adornment";
-import { randomRotation } from "./types";
 
 export interface PostcardCardProps {
   game: GameCardData;

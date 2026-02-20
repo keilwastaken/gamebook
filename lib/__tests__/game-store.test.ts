@@ -59,6 +59,49 @@ describe("useGames", () => {
     expect(result.current.playingGames.length).toBe(1);
   });
 
+  it("falls back to seed data when stored payload fails validation", async () => {
+    const stored = [
+      {
+        id: "g1",
+        title: "Broken",
+        status: "playing",
+        notes: [
+          {
+            id: "n1",
+            timestamp: "not-a-number",
+            whereLeftOff: "Saved point",
+          },
+        ],
+      },
+    ];
+    mockGetItem.mockResolvedValue(JSON.stringify(stored));
+
+    const { result } = renderHook(() => useGames());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.games).toHaveLength(5);
+    expect(result.current.games[0].id).toBe("seed-stardew");
+    expect(mockSetItem).toHaveBeenCalled();
+  });
+
+  it("normalizes unsupported stored ticket types to defaults", async () => {
+    const stored = [
+      {
+        id: "g1",
+        title: "Legacy",
+        status: "playing",
+        ticketType: "legacy",
+        notes: [],
+      },
+    ];
+    mockGetItem.mockResolvedValue(JSON.stringify(stored));
+
+    const { result } = renderHook(() => useGames());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.games[0].ticketType).toBe(DEFAULT_TICKET_TYPE);
+  });
+
   it("filters playingGames by status", async () => {
     const stored = [
       { id: "g1", title: "Playing", status: "playing", notes: [] },

@@ -13,7 +13,6 @@ import { MountAdornment } from "./mount-adornment";
 
 export interface MinimalCardProps {
   game: GameCardData;
-  seed?: number;
   /** No rotation by default for this card - keeps digital feel */
   rotation?: number;
 }
@@ -23,7 +22,6 @@ const PLACEHOLDER_IMAGE =
 
 export function MinimalCard({
   game,
-  seed = 5,
   rotation = 0,
 }: MinimalCardProps) {
   const imageSource = game.imageUri

@@ -16,6 +16,7 @@ import {
   getCardSpan,
   getCardSpanPresets,
 } from "./board-layout";
+import { decodeStoredGames } from "./game-storage-codec";
 
 const STORAGE_KEY = "@gamebook/games";
 let clientIdSequence = 0;
@@ -102,13 +103,10 @@ async function loadGames(): Promise<Game[]> {
   try {
     const raw = await AsyncStorage.getItem(STORAGE_KEY);
     if (raw) {
-      const parsed = JSON.parse(raw) as Game[];
-      const normalized = parsed.map((game) => ({
-        ...game,
-        ticketType: game.ticketType ?? DEFAULT_TICKET_TYPE,
-        mountStyle: game.mountStyle ?? DEFAULT_CARD_MOUNT_STYLE,
-        postcardSide: game.postcardSide ?? DEFAULT_POSTCARD_SIDE,
-      }));
+      const normalized = decodeStoredGames(raw);
+      if (!normalized) {
+        throw new Error("Invalid stored games payload");
+      }
       const needsSpanNormalization = normalized.some((game) => {
         if (!game.board) return false;
         const constrained = constrainSpanForCard(
@@ -147,6 +145,19 @@ export function useGames() {
   const [games, setGames] = useState<Game[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const setGamesWithPersistence = useCallback(
+    (update: (prev: Game[]) => Game[]) => {
+      setGames((prev) => {
+        const next = update(prev);
+        if (next !== prev) {
+          void persistGames(next);
+        }
+        return next;
+      });
+    },
+    []
+  );
+
   useEffect(() => {
     loadGames().then((loaded) => {
       setGames(loaded);
@@ -161,7 +172,7 @@ export function useGames() {
       gameId: string,
       note: Omit<GameNote, "id" | "timestamp">
     ): Promise<void> => {
-      setGames((prev) => {
+      setGamesWithPersistence((prev) => {
         const next = prev.map((g) => {
           if (g.id !== gameId) return g;
           const ts = Date.now();
@@ -176,11 +187,10 @@ export function useGames() {
             notes: [newNote, ...g.notes],
           };
         });
-        persistGames(next);
         return next;
       });
     },
-    []
+    [setGamesWithPersistence]
   );
 
   const addGameWithInitialNote = useCallback(
@@ -212,31 +222,29 @@ export function useGames() {
         notes: [newNote],
       };
       let createdGame: Game = newGame;
-      setGames((prev) => {
+      setGamesWithPersistence((prev) => {
         const next = applyBoardLayout(
           [newGame, ...prev],
           DEFAULT_BOARD_COLUMNS
         );
         createdGame = next[0];
-        persistGames(next);
         return next;
       });
       return createdGame;
     },
-    []
+    [setGamesWithPersistence]
   );
 
   const saveBoardPlacement = useCallback(
     async (gameId: string, board: BoardPlacement): Promise<void> => {
-      setGames((prev) => {
+      setGamesWithPersistence((prev) => {
         const next = prev.map((game) =>
           game.id === gameId ? { ...game, board } : game
         );
-        persistGames(next);
         return next;
       });
     },
-    []
+    [setGamesWithPersistence]
   );
 
   const reorderGame = useCallback(
@@ -246,7 +254,7 @@ export function useGames() {
       columns: number = DEFAULT_BOARD_COLUMNS,
       spanOverride?: { w: number; h: number }
     ): Promise<void> => {
-      setGames((prev) => {
+      setGamesWithPersistence((prev) => {
         const fromIndex = prev.findIndex((game) => game.id === gameId);
         if (fromIndex === -1) return prev;
         const ordered = [...prev];
@@ -265,11 +273,10 @@ export function useGames() {
         const clampedIndex = Math.max(0, Math.min(toIndex, ordered.length));
         ordered.splice(clampedIndex, 0, movedWithSpan);
         const next = applyBoardLayout(ordered, columns);
-        persistGames(next);
         return next;
       });
     },
-    []
+    [setGamesWithPersistence]
   );
 
   const moveGameToBoardTarget = useCallback(
@@ -278,14 +285,13 @@ export function useGames() {
       target: { x: number; y: number; w: number; h: number },
       columns: number = DEFAULT_BOARD_COLUMNS
     ): Promise<void> => {
-      setGames((prev) => {
+      setGamesWithPersistence((prev) => {
         if (!prev.some((game) => game.id === gameId)) return prev;
         const next = applyBoardLayoutWithPinned(prev, gameId, target, columns);
-        persistGames(next);
         return next;
       });
     },
-    []
+    [setGamesWithPersistence]
   );
 
   const cycleGameSpanPreset = useCallback(
@@ -293,7 +299,7 @@ export function useGames() {
       gameId: string,
       columns: number = DEFAULT_BOARD_COLUMNS
     ): Promise<void> => {
-      setGames((prev) => {
+      setGamesWithPersistence((prev) => {
         const game = prev.find((item) => item.id === gameId);
         if (!game) return prev;
 
@@ -321,11 +327,10 @@ export function useGames() {
           { x: targetX, y: targetY, w: nextSpan.w, h: nextSpan.h },
           columns
         );
-        persistGames(next);
         return next;
       });
     },
-    []
+    [setGamesWithPersistence]
   );
 
   const setGameSpanPreset = useCallback(
@@ -335,7 +340,7 @@ export function useGames() {
       columns: number = DEFAULT_BOARD_COLUMNS,
       offset?: { x: number; y: number }
     ): Promise<void> => {
-      setGames((prev) => {
+      setGamesWithPersistence((prev) => {
         const game = prev.find((item) => item.id === gameId);
         if (!game) return prev;
 
@@ -348,11 +353,10 @@ export function useGames() {
           { x: targetX, y: targetY, w: targetSpan.w, h: targetSpan.h },
           columns
         );
-        persistGames(next);
         return next;
       });
     },
-    []
+    [setGamesWithPersistence]
   );
 
   return {

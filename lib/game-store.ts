@@ -332,15 +332,16 @@ export function useGames() {
     async (
       gameId: string,
       span: { w: number; h: number },
-      columns: number = DEFAULT_BOARD_COLUMNS
+      columns: number = DEFAULT_BOARD_COLUMNS,
+      offset?: { x: number; y: number }
     ): Promise<void> => {
       setGames((prev) => {
         const game = prev.find((item) => item.id === gameId);
         if (!game) return prev;
 
         const targetSpan = constrainSpanForCard(game.ticketType, span, columns);
-        const targetX = game.board?.x ?? 0;
-        const targetY = game.board?.y ?? 0;
+        const targetX = (game.board?.x ?? 0) + (offset?.x ?? 0);
+        const targetY = (game.board?.y ?? 0) + (offset?.y ?? 0);
         const next = applyBoardLayoutWithPinned(
           prev,
           gameId,

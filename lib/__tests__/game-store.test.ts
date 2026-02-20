@@ -410,4 +410,44 @@ describe("useGames", () => {
     expect(result.current.games[0].board).toMatchObject({ w: 2, h: 2, columns: 4 });
     expect(mockSetItem).toHaveBeenCalled();
   });
+
+  it("setGameSpanPreset applies offset and reflows overlapping neighbors", async () => {
+    const stored = [
+      {
+        id: "left",
+        title: "Left",
+        status: "playing",
+        ticketType: "minimal",
+        notes: [],
+        board: { x: 0, y: 0, w: 1, h: 1, columns: 4 },
+      },
+      {
+        id: "right",
+        title: "Right",
+        status: "playing",
+        ticketType: "minimal",
+        notes: [],
+        board: { x: 1, y: 0, w: 1, h: 1, columns: 4 },
+      },
+    ];
+    mockGetItem.mockResolvedValue(JSON.stringify(stored));
+
+    const { result } = renderHook(() => useGames());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => {
+      await result.current.setGameSpanPreset!(
+        "left",
+        { w: 1, h: 2 },
+        4,
+        { x: 1, y: 0 }
+      );
+    });
+
+    const left = result.current.games.find((game) => game.id === "left");
+    const right = result.current.games.find((game) => game.id === "right");
+    expect(left?.board).toMatchObject({ x: 1, y: 0, w: 1, h: 2, columns: 4 });
+    expect(right?.board).toMatchObject({ x: 0, y: 0, w: 1, h: 1, columns: 4 });
+    expect(mockSetItem).toHaveBeenCalled();
+  });
 });

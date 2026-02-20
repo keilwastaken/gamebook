@@ -78,6 +78,9 @@ Rules:
    - `polaroid`, `minimal`, `widget`: full 2x2 icon permutation set
    - `postcard`, `ticket`: `top-row`, `bottom-row`, `full-grid`
 7. UI option order is least-filled to most-filled, with `full-grid` always last.
+8. Size option icon position also provides resize anchoring deltas. Example:
+   choosing a right-side icon then switching back to left-side moves the card
+   back left immediately; each click applies movement before reflow.
 
 ## Placement Algorithms
 

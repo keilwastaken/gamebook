@@ -1,6 +1,10 @@
 import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react-native";
 import { JournalOverlay } from "../journal-overlay";
+import {
+  GRID_ACTIVE_TOP_LEFT,
+  GRID_ACTIVE_TOP_RIGHT,
+} from "@/components/ui/grid-glyph";
 import type { Game } from "@/lib/types";
 
 jest.mock("expo-haptics", () => ({
@@ -109,7 +113,38 @@ describe("JournalOverlay", () => {
     );
 
     fireEvent.press(screen.getByTestId("journal-size-2x2"));
-    expect(onSelectSize).toHaveBeenCalledWith({ w: 2, h: 2 });
+    expect(onSelectSize).toHaveBeenCalledWith({ w: 2, h: 2 }, { x: 0, y: 0 });
     expect(screen.getByTestId("journal-size-options")).toBeTruthy();
+  });
+
+  it("applies movement deltas for repeated same-span icon changes", () => {
+    const onSelectSize = jest.fn();
+    render(
+      <JournalOverlay
+        game={MOCK_GAME}
+        onSave={jest.fn()}
+        onClose={jest.fn()}
+        sizePresets={[
+          { id: "top-left", w: 1, h: 1, activePositions: GRID_ACTIVE_TOP_LEFT },
+          { id: "top-right", w: 1, h: 1, activePositions: GRID_ACTIVE_TOP_RIGHT },
+        ]}
+        currentSize={{ w: 1, h: 1 }}
+        onSelectSize={onSelectSize}
+      />
+    );
+
+    fireEvent.press(screen.getByTestId("journal-size-top-right"));
+    fireEvent.press(screen.getByTestId("journal-size-top-left"));
+
+    expect(onSelectSize).toHaveBeenNthCalledWith(
+      1,
+      { id: "top-right", w: 1, h: 1, activePositions: GRID_ACTIVE_TOP_RIGHT },
+      { x: 1, y: 0 }
+    );
+    expect(onSelectSize).toHaveBeenNthCalledWith(
+      2,
+      { id: "top-left", w: 1, h: 1, activePositions: GRID_ACTIVE_TOP_LEFT },
+      { x: -1, y: 0 }
+    );
   });
 });

@@ -39,7 +39,10 @@ export interface JournalOverlayProps {
   onClose: () => void;
   sizePresets?: JournalSizePreset[];
   currentSize?: { w: number; h: number };
-  onSelectSize?: (span: { w: number; h: number }) => void;
+  onSelectSize?: (
+    preset: JournalSizePreset,
+    movement: { x: number; y: number }
+  ) => void;
 }
 
 export function JournalOverlay({
@@ -176,6 +179,20 @@ export function JournalOverlay({
                         candidate.h === currentSize?.h
                       );
                     });
+                  const currentPreset = hasActiveSelectedPreset
+                    ? sizePresets.find((candidate) => {
+                        const candidateId =
+                          candidate.id ?? `${candidate.w}x${candidate.h}`;
+                        return (
+                          candidateId === selectedPresetId &&
+                          candidate.w === currentSize?.w &&
+                          candidate.h === currentSize?.h
+                        );
+                      }) ?? null
+                    : firstMatchingIndex >= 0
+                      ? sizePresets[firstMatchingIndex]
+                      : null;
+                  const currentAnchorOffset = getPresetAnchorOffset(currentPreset);
                   return sizePresets.map((preset, index) => {
                     const presetId = preset.id ?? `${preset.w}x${preset.h}`;
                     const currentSpanMatches =
@@ -194,7 +211,11 @@ export function JournalOverlay({
                         ]}
                         onPress={() => {
                           setSelectedPresetId(presetId);
-                          onSelectSize(preset);
+                          const nextAnchorOffset = getPresetAnchorOffset(preset);
+                          onSelectSize(preset, {
+                            x: nextAnchorOffset.x - currentAnchorOffset.x,
+                            y: nextAnchorOffset.y - currentAnchorOffset.y,
+                          });
                         }}
                       >
                         <GridGlyph
@@ -305,6 +326,26 @@ function getDefaultActivePositionsForSpan(
   if (span.w >= 2) return GRID_ACTIVE_TOP_ROW;
   if (span.h >= 2) return GRID_ACTIVE_LEFT_COLUMN;
   return GRID_ACTIVE_TOP_LEFT;
+}
+
+const GRID_POSITION_COORDS = {
+  "top-left": { x: 0, y: 0 },
+  "top-right": { x: 1, y: 0 },
+  "bottom-left": { x: 0, y: 1 },
+  "bottom-right": { x: 1, y: 1 },
+} as const;
+
+function getPresetAnchorOffset(
+  preset: JournalSizePreset | null
+): { x: number; y: number } {
+  if (!preset) return { x: 0, y: 0 };
+  const positions = preset.activePositions ?? getDefaultActivePositionsForSpan(preset);
+  if (positions.length === 0) return { x: 0, y: 0 };
+
+  const coords = positions.map((position) => GRID_POSITION_COORDS[position]);
+  const minX = Math.min(...coords.map((coord) => coord.x));
+  const minY = Math.min(...coords.map((coord) => coord.y));
+  return { x: minX, y: minY };
 }
 
 const styles = StyleSheet.create({

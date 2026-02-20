@@ -284,9 +284,14 @@ export default function HomeScreen() {
   }, [activeGame, boardColumns]);
 
   const handleSetActiveGameSpan = useCallback(
-    async (span: { w: number; h: number }) => {
+    async (preset: JournalSizePreset, movement: { x: number; y: number }) => {
       if (!activeGame) return;
-      await setGameSpanPreset(activeGame.id, span, boardColumns);
+      await setGameSpanPreset(
+        activeGame.id,
+        { w: preset.w, h: preset.h },
+        boardColumns,
+        movement
+      );
     },
     [activeGame, setGameSpanPreset, boardColumns]
   );
@@ -637,8 +642,8 @@ export default function HomeScreen() {
           onClose={handleCloseJournal}
           sizePresets={activeGameSpanPresets}
           currentSize={activeGameCurrentSpan}
-          onSelectSize={(span) => {
-            void handleSetActiveGameSpan(span);
+          onSelectSize={(preset, movement) => {
+            void handleSetActiveGameSpan(preset, movement);
           }}
         />
       )}

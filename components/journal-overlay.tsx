@@ -139,7 +139,7 @@ export function JournalOverlay({
       style={[styles.overlay, { opacity: fadeAnim }]}
       testID="journal-overlay"
     >
-      <Pressable style={styles.backdrop} onPress={handleClose} />
+      <Pressable testID="journal-backdrop" style={styles.backdrop} onPress={handleClose} />
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.keyboardAvoid}

@@ -1,5 +1,6 @@
 import React from "react";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react-native";
+import { PanResponder } from "react-native";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react-native";
 
 import HomeScreen from "../index";
 import { useGamesContext } from "@/lib/games-context";
@@ -18,16 +19,16 @@ jest.mock("@/components/cards", () => {
   const React = require("react");
   const { Text } = require("react-native");
 
-  const MockCard = ({ game }: { game: { title: string } }) => (
-    <Text testID={`mock-card-${game.title}`}>{game.title}</Text>
+  const makeCard = (kind: string) => ({ game }: { game: { id?: string; title: string } }) => (
+    <Text testID={`mock-card-${kind}-${game.id ?? game.title}`}>{game.title}</Text>
   );
 
   return {
-    MinimalCard: MockCard,
-    PolaroidCard: MockCard,
-    PostcardCard: MockCard,
-    TicketCard: MockCard,
-    WidgetCard: MockCard,
+    MinimalCard: makeCard("minimal"),
+    PolaroidCard: makeCard("polaroid"),
+    PostcardCard: makeCard("postcard"),
+    TicketCard: makeCard("ticket"),
+    WidgetCard: makeCard("widget"),
   };
 });
 
@@ -84,11 +85,23 @@ function makeContext(overrides: Partial<ReturnType<typeof useGamesContext>> = {}
 }
 
 describe("HomeScreen", () => {
+  let capturedPanResponderConfig: any;
+  let panResponderSpy: jest.SpyInstance;
+
   beforeEach(() => {
     mockSaveNote.mockReset().mockResolvedValue(undefined);
     mockMoveGameToBoardTarget.mockReset().mockResolvedValue(undefined);
     mockSetGameSpanPreset.mockReset().mockResolvedValue(undefined);
     mockUseGamesContext.mockReset();
+    capturedPanResponderConfig = null;
+    panResponderSpy = jest.spyOn(PanResponder, "create").mockImplementation((config) => {
+      capturedPanResponderConfig = config;
+      return { panHandlers: {} } as any;
+    });
+  });
+
+  afterEach(() => {
+    panResponderSpy.mockRestore();
   });
 
   it("shows loading state", () => {
@@ -199,5 +212,156 @@ describe("HomeScreen", () => {
 
     fireEvent.press(screen.getByTestId("mock-journal-close"));
     expect(screen.queryByTestId("mock-journal-overlay")).toBeNull();
+  });
+
+  it("routes each ticket type to the correct visual card component", () => {
+    mockUseGamesContext.mockReturnValue(
+      makeContext({
+        loading: false,
+        playingGames: [
+          { id: "p", title: "Polaroid", status: "playing", ticketType: "polaroid", notes: [] },
+          { id: "pc", title: "Postcard", status: "playing", ticketType: "postcard", notes: [] },
+          { id: "w", title: "Widget", status: "playing", ticketType: "widget", notes: [] },
+          { id: "t", title: "Ticket", status: "playing", ticketType: "ticket", notes: [] },
+          { id: "m", title: "Minimal", status: "playing", ticketType: "minimal", notes: [] },
+          { id: "d", title: "Default", status: "playing", notes: [] },
+        ],
+      })
+    );
+
+    render(<HomeScreen />);
+
+    expect(screen.getByTestId("mock-card-polaroid-p")).toBeTruthy();
+    expect(screen.getByTestId("mock-card-postcard-pc")).toBeTruthy();
+    expect(screen.getByTestId("mock-card-widget-w")).toBeTruthy();
+    expect(screen.getByTestId("mock-card-ticket-t")).toBeTruthy();
+    expect(screen.getByTestId("mock-card-minimal-m")).toBeTruthy();
+    expect(screen.getByTestId("mock-card-polaroid-d")).toBeTruthy();
+  });
+
+  it("runs pan responder drag flow and drop move target", async () => {
+    mockUseGamesContext.mockReturnValue(
+      makeContext({
+        loading: false,
+        playingGames: [
+          {
+            id: "drag-1",
+            title: "Drag",
+            status: "playing",
+            ticketType: "polaroid",
+            board: { x: 0, y: 0, w: 1, h: 1, columns: 4 },
+            notes: [],
+          },
+        ],
+      })
+    );
+
+    render(<HomeScreen />);
+    expect(capturedPanResponderConfig).toBeTruthy();
+
+    expect(capturedPanResponderConfig.onStartShouldSetPanResponderCapture()).toBe(false);
+    expect(capturedPanResponderConfig.onMoveShouldSetPanResponderCapture()).toBe(false);
+
+    await act(async () => {
+      capturedPanResponderConfig.onPanResponderMove({}, { moveX: 50, moveY: 50 });
+      capturedPanResponderConfig.onPanResponderRelease();
+    });
+
+    fireEvent(screen.getByTestId("playing-card-add-drag-1"), "longPress", {
+      nativeEvent: { locationX: 8, locationY: 8 },
+    });
+
+    expect(capturedPanResponderConfig.onStartShouldSetPanResponderCapture()).toBe(true);
+    expect(capturedPanResponderConfig.onMoveShouldSetPanResponderCapture()).toBe(true);
+
+    await act(async () => {
+      capturedPanResponderConfig.onPanResponderMove({}, { moveX: 140, moveY: 180 });
+      capturedPanResponderConfig.onPanResponderRelease();
+    });
+
+    await waitFor(() =>
+      expect(mockMoveGameToBoardTarget).toHaveBeenCalledWith(
+        "drag-1",
+        expect.objectContaining({ w: 1, h: 1 }),
+        4
+      )
+    );
+
+    await act(async () => {
+      capturedPanResponderConfig.onPanResponderTerminate();
+    });
+  });
+
+  it("ignores tap immediately after long press, then allows tap after drag ends", () => {
+    mockUseGamesContext.mockReturnValue(
+      makeContext({
+        loading: false,
+        playingGames: [
+          {
+            id: "drag-2",
+            title: "Drag 2",
+            status: "playing",
+            ticketType: "minimal",
+            board: { x: 0, y: 0, w: 1, h: 1, columns: 4 },
+            notes: [],
+          },
+        ],
+      })
+    );
+
+    render(<HomeScreen />);
+    const card = screen.getByTestId("playing-card-add-drag-2");
+    fireEvent(card, "longPress", { nativeEvent: { locationX: 6, locationY: 6 } });
+    fireEvent.press(card);
+    expect(screen.queryByTestId("mock-journal-overlay")).toBeNull();
+
+    act(() => {
+      capturedPanResponderConfig.onPanResponderTerminate();
+    });
+    fireEvent.press(card);
+    fireEvent.press(card);
+    expect(screen.getByTestId("mock-journal-overlay")).toBeTruthy();
+  });
+
+  it("refreshes active game when latest board game reference changes", async () => {
+    const first = makeContext({
+      loading: false,
+      playingGames: [
+        {
+          id: "same-id",
+          title: "Old Title",
+          status: "playing",
+          ticketType: "ticket",
+          board: { x: 0, y: 0, w: 2, h: 1, columns: 4 },
+          notes: [],
+        },
+      ],
+    });
+    const second = makeContext({
+      loading: false,
+      playingGames: [
+        {
+          id: "same-id",
+          title: "New Title",
+          status: "playing",
+          ticketType: "ticket",
+          board: { x: 0, y: 0, w: 2, h: 1, columns: 4 },
+          notes: [],
+        },
+      ],
+    });
+
+    let current = first;
+    mockUseGamesContext.mockImplementation(() => current);
+
+    const view = render(<HomeScreen />);
+    fireEvent.press(screen.getByTestId("playing-card-add-same-id"));
+    expect(screen.queryAllByText("Old Title").length).toBeGreaterThan(0);
+
+    current = second;
+    view.rerender(<HomeScreen />);
+    await waitFor(() =>
+      expect(screen.queryAllByText("New Title").length).toBeGreaterThan(0)
+    );
   });
 });

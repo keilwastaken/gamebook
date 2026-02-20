@@ -7,8 +7,17 @@ import {
   type Game,
   type GameNote,
 } from "./types";
+import { applyBoardLayout, DEFAULT_BOARD_COLUMNS } from "./board-layout";
 
 const STORAGE_KEY = "@gamebook/games";
+let clientIdSequence = 0;
+
+function createClientId(prefix: "game" | "note"): string {
+  clientIdSequence = (clientIdSequence + 1) % 1_000_000;
+  const ts = Date.now().toString(36);
+  const seq = clientIdSequence.toString(36).padStart(4, "0");
+  return `tmp_${prefix}_${ts}_${seq}`;
+}
 
 const SEED_GAMES: Game[] = [
   {
@@ -86,18 +95,31 @@ async function loadGames(): Promise<Game[]> {
     const raw = await AsyncStorage.getItem(STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as Game[];
-      return parsed.map((game) => ({
+      const normalized = parsed.map((game) => ({
         ...game,
         ticketType: game.ticketType ?? DEFAULT_TICKET_TYPE,
         mountStyle: game.mountStyle ?? DEFAULT_CARD_MOUNT_STYLE,
         postcardSide: game.postcardSide ?? DEFAULT_POSTCARD_SIDE,
       }));
+      const needsLayoutMigration = normalized.some(
+        (game) =>
+          !game.board ||
+          game.board.columns !== DEFAULT_BOARD_COLUMNS
+      );
+      const withLayout = needsLayoutMigration
+        ? applyBoardLayout(normalized, DEFAULT_BOARD_COLUMNS)
+        : normalized;
+      if (needsLayoutMigration) {
+        await persistGames(withLayout);
+      }
+      return withLayout;
     }
   } catch {
     // Fall through to seed data
   }
-  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(SEED_GAMES));
-  return SEED_GAMES;
+  const seeded = applyBoardLayout(SEED_GAMES, DEFAULT_BOARD_COLUMNS);
+  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(seeded));
+  return seeded;
 }
 
 async function persistGames(games: Game[]): Promise<void> {
@@ -125,10 +147,11 @@ export function useGames() {
       setGames((prev) => {
         const next = prev.map((g) => {
           if (g.id !== gameId) return g;
+          const ts = Date.now();
           const newNote: GameNote = {
             ...note,
-            id: `note-${Date.now()}`,
-            timestamp: Date.now(),
+            id: createClientId("note"),
+            timestamp: ts,
           };
           return {
             ...g,
@@ -153,8 +176,8 @@ export function useGames() {
       postcardSide?: Game["postcardSide"];
     }): Promise<Game> => {
       const ts = Date.now();
-      const noteId = `note-${ts}`;
-      const gameId = `game-${ts}`;
+      const noteId = createClientId("note");
+      const gameId = createClientId("game");
       const newNote: GameNote = {
         id: noteId,
         timestamp: ts,
@@ -171,12 +194,17 @@ export function useGames() {
         lastNote: newNote,
         notes: [newNote],
       };
+      let createdGame: Game = newGame;
       setGames((prev) => {
-        const next = [newGame, ...prev];
+        const next = applyBoardLayout(
+          [newGame, ...prev],
+          DEFAULT_BOARD_COLUMNS
+        );
+        createdGame = next[0];
         persistGames(next);
         return next;
       });
-      return newGame;
+      return createdGame;
     },
     []
   );

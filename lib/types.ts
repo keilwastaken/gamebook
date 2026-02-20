@@ -15,6 +15,14 @@ export type PostcardSide = "front" | "back";
 
 export const DEFAULT_POSTCARD_SIDE: PostcardSide = "front";
 
+export interface BoardPlacement {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  columns: number;
+}
+
 export interface GameNote {
   id: string;
   timestamp: number;
@@ -28,6 +36,7 @@ export interface Game {
   ticketType?: TicketType;
   mountStyle?: CardMountStyle;
   postcardSide?: PostcardSide;
+  board?: BoardPlacement;
   imageUri?: string;
   playtime?: string;
   status: "playing" | "backlog" | "finished" | "dropped";

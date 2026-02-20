@@ -153,4 +153,56 @@ describe("useGames", () => {
     expect(added.mountStyle).toBe(DEFAULT_CARD_MOUNT_STYLE);
     expect(added.postcardSide).toBe(DEFAULT_POSTCARD_SIDE);
   });
+
+  it("generates unique IDs even when Date.now returns same value", async () => {
+    mockGetItem.mockResolvedValue(JSON.stringify([]));
+    const nowSpy = jest.spyOn(Date, "now").mockReturnValue(1700000000000);
+
+    try {
+      const { result } = renderHook(() => useGames());
+      await waitFor(() => expect(result.current.loading).toBe(false));
+
+      await act(async () => {
+        await result.current.addGameWithInitialNote!({
+          title: "Game One",
+          whereLeftOff: "Start",
+        });
+        await result.current.addGameWithInitialNote!({
+          title: "Game Two",
+          whereLeftOff: "Start",
+        });
+      });
+
+      const ids = result.current.games.map((game) => game.id);
+      expect(new Set(ids).size).toBe(ids.length);
+    } finally {
+      nowSpy.mockRestore();
+    }
+  });
+
+  it("places newest game at top-left and reflows existing board layout", async () => {
+    mockGetItem.mockResolvedValue(JSON.stringify([]));
+
+    const { result } = renderHook(() => useGames());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => {
+      await result.current.addGameWithInitialNote!({
+        title: "Older",
+        whereLeftOff: "Saved",
+        ticketType: "ticket",
+      });
+      await result.current.addGameWithInitialNote!({
+        title: "Newest",
+        whereLeftOff: "Start",
+        ticketType: "polaroid",
+      });
+    });
+
+    const newest = result.current.games.find((game) => game.title === "Newest");
+    const older = result.current.games.find((game) => game.title === "Older");
+
+    expect(newest?.board).toMatchObject({ x: 0, y: 0 });
+    expect(older?.board).not.toMatchObject({ x: 0, y: 0 });
+  });
 });

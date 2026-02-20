@@ -1,10 +1,11 @@
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from "react-native";
 
@@ -18,27 +19,49 @@ import {
 } from "@/components/cards";
 import { JournalOverlay } from "@/components/journal-overlay";
 import { useGamesContext } from "@/lib/games-context";
-import { DEFAULT_TICKET_TYPE, type Game } from "@/lib/types";
+import { applyBoardLayout } from "@/lib/board-layout";
+import { DEFAULT_TICKET_TYPE, type Game, type TicketType } from "@/lib/types";
+
+const BOARD_GAP = 8;
+const BASE_CARD_SIZE: Record<TicketType, { width: number; height: number }> = {
+  polaroid: { width: 140, height: 196 },
+  postcard: { width: 228, height: 142 },
+  widget: { width: 150, height: 98 },
+  ticket: { width: 220, height: 90 },
+  minimal: { width: 220, height: 84 },
+};
 
 export default function HomeScreen() {
   const { playingGames, loading, saveNote } = useGamesContext();
   const [activeGame, setActiveGame] = useState<Game | null>(null);
-
-  const dashboardGames = playingGames.filter(
-    (game, index, list) =>
-      list.findIndex(
-        (candidate) =>
-          (candidate.ticketType ?? DEFAULT_TICKET_TYPE) ===
-          (game.ticketType ?? DEFAULT_TICKET_TYPE)
-      ) === index
+  const { width } = useWindowDimensions();
+  const boardColumns = 4;
+  const boardWidth = Math.max(200, width - 32);
+  const cellWidth =
+    (boardWidth - BOARD_GAP * (boardColumns - 1)) / boardColumns;
+  const rowHeight = cellWidth * 1.28;
+  const boardGames = useMemo(
+    () => applyBoardLayout(playingGames, boardColumns),
+    [playingGames, boardColumns]
   );
+  const boardRows = useMemo(
+    () =>
+      boardGames.reduce((max, game) => {
+        const y = game.board?.y ?? 0;
+        const h = game.board?.h ?? 1;
+        return Math.max(max, y + h);
+      }, 0),
+    [boardGames]
+  );
+  const boardHeight =
+    boardRows > 0 ? boardRows * rowHeight + (boardRows - 1) * BOARD_GAP : 0;
 
   const handleAddNote = useCallback(
     (gameId: string) => {
-      const game = dashboardGames.find((g) => g.id === gameId);
+      const game = boardGames.find((g) => g.id === gameId);
       if (game) setActiveGame(game);
     },
-    [dashboardGames]
+    [boardGames]
   );
 
   const handleSaveNote = useCallback(
@@ -54,54 +77,22 @@ export default function HomeScreen() {
     setActiveGame(null);
   }, []);
 
-  const renderCard = useCallback(
-    (game: Game, index: number) => {
-      const ticketType = game.ticketType ?? DEFAULT_TICKET_TYPE;
-      const cardData = {
-        ...game,
-        notePreview: game.lastNote?.whereLeftOff,
-        mountStyle: game.mountStyle,
-        postcardSide: game.postcardSide,
-      };
-      const baseProps = { game: cardData, seed: index + 1 };
+  const renderCardVisual = useCallback((game: Game, index: number) => {
+    const ticketType = game.ticketType ?? DEFAULT_TICKET_TYPE;
+    const cardData = {
+      ...game,
+      notePreview: game.lastNote?.whereLeftOff,
+      mountStyle: game.mountStyle,
+      postcardSide: game.postcardSide,
+    };
+    const baseProps = { game: cardData, seed: index + 1 };
 
-      if (ticketType === "ticket") {
-        return (
-          <TicketCard
-            key={game.id}
-            game={game}
-            onPress={handleAddNote}
-            seed={index + 1}
-          />
-        );
-      }
-
-      const card =
-        ticketType === "postcard" ? (
-          <PostcardCard {...baseProps} />
-        ) : ticketType === "widget" ? (
-          <WidgetCard {...baseProps} />
-        ) : ticketType === "minimal" ? (
-          <MinimalCard {...baseProps} />
-        ) : (
-          <PolaroidCard {...baseProps} />
-        );
-
-      return (
-        <Pressable
-          key={game.id}
-          onPress={() => handleAddNote(game.id)}
-          testID={`playing-card-add-${game.id}`}
-          accessibilityLabel={`Update bookmark for ${game.title}`}
-          accessibilityRole="button"
-          style={styles.cardPressable}
-        >
-          <View testID={`playing-card-${game.id}`}>{card}</View>
-        </Pressable>
-      );
-    },
-    [handleAddNote]
-  );
+    if (ticketType === "postcard") return <PostcardCard {...baseProps} />;
+    if (ticketType === "widget") return <WidgetCard {...baseProps} />;
+    if (ticketType === "minimal") return <MinimalCard {...baseProps} />;
+    if (ticketType === "ticket") return <TicketCard game={game} seed={index + 1} />;
+    return <PolaroidCard {...baseProps} />;
+  }, []);
 
   return (
     <>
@@ -116,7 +107,7 @@ export default function HomeScreen() {
           <Text style={styles.subtitle}>
             {loading
               ? "Loading..."
-              : `${dashboardGames.length} game${dashboardGames.length !== 1 ? "s" : ""}`}
+              : `${boardGames.length} game${boardGames.length !== 1 ? "s" : ""}`}
           </Text>
         </View>
 
@@ -124,15 +115,50 @@ export default function HomeScreen() {
           <View style={styles.loadingContainer}>
             <ActivityIndicator color={palette.sage[400]} size="large" />
           </View>
-        ) : dashboardGames.length === 0 ? (
+        ) : boardGames.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyText}>
               No games pinned yet.{"\n"}Add one to start your journey!
             </Text>
           </View>
         ) : (
-          <View style={styles.ticketGrid}>
-            {dashboardGames.map((game, index) => renderCard(game, index))}
+          <View style={[styles.board, { height: boardHeight }]}>
+            {boardGames.map((game, index) => {
+              const board = game.board ?? { x: 0, y: index, w: 1, h: 1 };
+              const ticketType = game.ticketType ?? DEFAULT_TICKET_TYPE;
+              const baseSize = BASE_CARD_SIZE[ticketType];
+              const slotWidth = board.w * cellWidth + (board.w - 1) * BOARD_GAP;
+              const slotHeight = board.h * rowHeight + (board.h - 1) * BOARD_GAP;
+              const scale = Math.min(
+                (slotWidth - 2) / baseSize.width,
+                (slotHeight - 2) / baseSize.height
+              );
+
+              return (
+                <Pressable
+                  key={game.id}
+                  onPress={() => handleAddNote(game.id)}
+                  testID={`playing-card-add-${game.id}`}
+                  accessibilityLabel={`Update bookmark for ${game.title}`}
+                  accessibilityRole="button"
+                  style={[
+                    styles.boardItem,
+                    {
+                      left: board.x * (cellWidth + BOARD_GAP),
+                      top: board.y * (rowHeight + BOARD_GAP),
+                      width: slotWidth,
+                      height: slotHeight,
+                    },
+                  ]}
+                >
+                  <View style={styles.slotCenter} testID={`playing-card-${game.id}`}>
+                    <View style={{ transform: [{ scale }] }}>
+                      {renderCardVisual(game, index)}
+                    </View>
+                  </View>
+                </Pressable>
+              );
+            })}
           </View>
         )}
       </ScrollView>
@@ -152,7 +178,7 @@ const styles = StyleSheet.create({
   scroll: { flex: 1, backgroundColor: "transparent" },
   scrollContent: {
     flexGrow: 1,
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     paddingTop: 16,
     paddingBottom: 120,
   },
@@ -192,12 +218,15 @@ const styles = StyleSheet.create({
     textAlign: "center",
     lineHeight: 22,
   },
-  ticketGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 16,
+  board: {
+    position: "relative",
   },
-  cardPressable: {
-    alignSelf: "flex-start",
+  boardItem: {
+    position: "absolute",
+  },
+  slotCenter: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
   },
 });

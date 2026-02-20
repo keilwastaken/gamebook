@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { DEFAULT_TICKET_TYPE, type Game, type GameNote } from "./types";
+import {
+  DEFAULT_CARD_MOUNT_STYLE,
+  DEFAULT_TICKET_TYPE,
+  type Game,
+  type GameNote,
+} from "./types";
 
 const STORAGE_KEY = "@gamebook/games";
 
@@ -9,6 +14,7 @@ const SEED_GAMES: Game[] = [
     id: "seed-stardew",
     title: "Stardew Valley",
     ticketType: "polaroid",
+    mountStyle: "tape",
     playtime: "24h 12m",
     status: "playing",
     lastNote: {
@@ -21,7 +27,8 @@ const SEED_GAMES: Game[] = [
   {
     id: "seed-spiritfarer",
     title: "Spiritfarer",
-    ticketType: "postcard",
+    ticketType: "polaroid",
+    mountStyle: "color-pin",
     playtime: "8h 45m",
     status: "playing",
     lastNote: {
@@ -34,8 +41,9 @@ const SEED_GAMES: Game[] = [
   },
   {
     id: "seed-hades",
-    title: "Hades II",
-    ticketType: "widget",
+    title: "Hades",
+    ticketType: "polaroid",
+    mountStyle: "metal-pin",
     playtime: "6h 10m",
     status: "playing",
     lastNote: {
@@ -78,10 +86,34 @@ async function loadGames(): Promise<Game[]> {
     const raw = await AsyncStorage.getItem(STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as Game[];
-      return parsed.map((game) => ({
-        ...game,
-        ticketType: game.ticketType ?? DEFAULT_TICKET_TYPE,
-      }));
+      return parsed.map((game) => {
+        if (game.id === "seed-stardew") {
+          return {
+            ...game,
+            ticketType: "polaroid",
+            mountStyle: "tape",
+          };
+        }
+        if (game.id === "seed-spiritfarer") {
+          return {
+            ...game,
+            ticketType: "polaroid",
+            mountStyle: "color-pin",
+          };
+        }
+        if (game.id === "seed-hades") {
+          return {
+            ...game,
+            ticketType: "polaroid",
+            mountStyle: "metal-pin",
+          };
+        }
+        return {
+          ...game,
+          ticketType: game.ticketType ?? DEFAULT_TICKET_TYPE,
+          mountStyle: game.mountStyle ?? DEFAULT_CARD_MOUNT_STYLE,
+        };
+      });
     }
   } catch {
     // Fall through to seed data
@@ -139,6 +171,7 @@ export function useGames() {
       whereLeftOff: string;
       quickThought?: string;
       ticketType?: Game["ticketType"];
+      mountStyle?: Game["mountStyle"];
     }): Promise<Game> => {
       const ts = Date.now();
       const noteId = `note-${ts}`;
@@ -153,6 +186,7 @@ export function useGames() {
         id: gameId,
         title: input.title.trim(),
         ticketType: input.ticketType ?? DEFAULT_TICKET_TYPE,
+        mountStyle: input.mountStyle ?? DEFAULT_CARD_MOUNT_STYLE,
         status: "playing",
         lastNote: newNote,
         notes: [newNote],

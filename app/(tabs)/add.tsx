@@ -15,8 +15,11 @@ import * as Haptics from "expo-haptics";
 import {
   AlignLeftIcon,
   CameraIcon,
+  CircleIcon,
   EnvelopeSimpleIcon,
   type IconProps,
+  PushPinIcon,
+  RectangleIcon,
   SquaresFourIcon,
   TicketIcon,
 } from "phosphor-react-native";
@@ -24,7 +27,12 @@ import {
 import { palette } from "@/constants/palette";
 import { CozyShadows } from "@/utils/shadows";
 import { useGamesContext } from "@/lib/games-context";
-import { DEFAULT_TICKET_TYPE, type TicketType } from "@/lib/types";
+import {
+  DEFAULT_CARD_MOUNT_STYLE,
+  DEFAULT_TICKET_TYPE,
+  type CardMountStyle,
+  type TicketType,
+} from "@/lib/types";
 
 const TICKET_TYPE_OPTIONS: Array<{
   id: TicketType;
@@ -38,6 +46,16 @@ const TICKET_TYPE_OPTIONS: Array<{
   { id: "minimal", label: "Minimal", Icon: AlignLeftIcon },
 ];
 
+const MOUNT_STYLE_OPTIONS: Array<{
+  id: CardMountStyle;
+  label: string;
+  Icon: ComponentType<IconProps>;
+}> = [
+  { id: "tape", label: "Tape", Icon: RectangleIcon },
+  { id: "color-pin", label: "Pin", Icon: PushPinIcon },
+  { id: "metal-pin", label: "Steel", Icon: CircleIcon },
+];
+
 export default function AddScreen() {
   const router = useRouter();
   const { addGameWithInitialNote } = useGamesContext();
@@ -45,6 +63,9 @@ export default function AddScreen() {
   const [whereLeftOff, setWhereLeftOff] = useState("");
   const [quickThought, setQuickThought] = useState("");
   const [ticketType, setTicketType] = useState<TicketType>(DEFAULT_TICKET_TYPE);
+  const [mountStyle, setMountStyle] = useState<CardMountStyle>(
+    DEFAULT_CARD_MOUNT_STYLE
+  );
   const [saving, setSaving] = useState(false);
 
   const scaleAnim = useRef(new Animated.Value(1)).current;
@@ -60,6 +81,7 @@ export default function AddScreen() {
       whereLeftOff: whereLeftOff.trim(),
       quickThought: quickThought.trim() || undefined,
       ticketType,
+      mountStyle,
     });
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setSaving(false);
@@ -159,6 +181,36 @@ export default function AddScreen() {
               );
             })}
           </View>
+          {ticketType === "polaroid" ? (
+            <>
+              <Text style={styles.sectionLabel}>MOUNT STYLE</Text>
+              <View style={styles.ticketTypeRow}>
+                {MOUNT_STYLE_OPTIONS.map(({ id, label, Icon }) => {
+                  const selected = id === mountStyle;
+                  return (
+                    <Pressable
+                      key={id}
+                      testID={`add-mount-style-${id}`}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Select ${label} mount style`}
+                      accessibilityState={{ selected }}
+                      onPress={() => setMountStyle(id)}
+                      style={[
+                        styles.ticketTypeButton,
+                        selected && styles.ticketTypeButtonSelected,
+                      ]}
+                    >
+                      <Icon
+                        size={18}
+                        color={selected ? palette.cream.DEFAULT : palette.sage[500]}
+                        weight={selected ? "fill" : "regular"}
+                      />
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </>
+          ) : null}
 
           <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
             <Pressable

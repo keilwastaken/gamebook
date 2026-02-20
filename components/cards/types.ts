@@ -4,6 +4,7 @@ export interface GameCardData {
   /** Playtime string e.g. "24h 12m" */
   playtime?: string;
   notePreview?: string;
+  mountStyle?: "tape" | "color-pin" | "metal-pin";
 }
 
 const ROTATION_MIN = -2;

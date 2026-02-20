@@ -34,14 +34,13 @@ export function PolaroidCard({
   const imageSource = game.imageUri
     ? { uri: game.imageUri }
     : { uri: PLACEHOLDER_IMAGE };
-  const mountStyle = seed % 3 === 0 ? "metal-pin" : seed % 2 === 0 ? "color-pin" : "tape";
+  const mountStyle = game.mountStyle ?? "tape";
   const pinColor =
     mountStyle === "metal-pin"
       ? palette.warm[300]
       : seed % 4 === 0
         ? palette.sage[500]
         : palette.clay[500];
-  const showCornerWear = seed % 2 === 0;
   const handwrittenTilt = seed % 2 === 0;
 
   return (
@@ -91,18 +90,14 @@ export function PolaroidCard({
             {game.title}
           </Text>
           {game.playtime ? (
-            <Text style={[styles.metaText, handwrittenTilt && styles.metaTextHandwritten]} numberOfLines={1}>
+            <Text
+              style={[styles.metaText, handwrittenTilt && styles.metaTextHandwritten]}
+              numberOfLines={1}
+            >
               {game.playtime}
             </Text>
           ) : null}
         </View>
-        {showCornerWear ? (
-          <>
-            <View style={styles.cornerCurl} />
-            <View style={styles.cornerCrease} />
-          </>
-        ) : null}
-        <View style={styles.bottomGloss} />
       </View>
     </View>
   );
@@ -237,36 +232,5 @@ const styles = StyleSheet.create({
   metaTextHandwritten: {
     marginTop: 2,
     opacity: 0.88,
-  },
-  cornerCurl: {
-    position: "absolute",
-    right: 0,
-    bottom: 0,
-    width: 0,
-    height: 0,
-    borderBottomWidth: 9,
-    borderLeftWidth: 9,
-    borderBottomColor: palette.warm[100],
-    borderLeftColor: "transparent",
-    opacity: 0.9,
-  },
-  cornerCrease: {
-    position: "absolute",
-    right: 1,
-    bottom: 4,
-    width: 7,
-    height: 1,
-    backgroundColor: palette.warm[200],
-    transform: [{ rotate: "-45deg" }],
-    opacity: 0.9,
-  },
-  bottomGloss: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: 4,
-    backgroundColor: palette.warm[100],
-    opacity: 0.65,
   },
 });

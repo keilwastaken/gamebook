@@ -84,4 +84,20 @@ describe("AddScreen", () => {
     expect(screen.getByTestId("add-ticket-type-ticket")).toBeTruthy();
     expect(screen.getByTestId("add-ticket-type-minimal")).toBeTruthy();
   });
+
+  it("shows mount style choices for polaroid and hides them for other ticket types", async () => {
+    render(<AddScreenWithProvider />);
+    await waitFor(() =>
+      expect(screen.getByTestId("add-mount-style-tape")).toBeTruthy()
+    );
+
+    expect(
+      screen.getByTestId("add-mount-style-tape").props.accessibilityState?.selected
+    ).toBe(true);
+    expect(screen.getByTestId("add-mount-style-color-pin")).toBeTruthy();
+    expect(screen.getByTestId("add-mount-style-metal-pin")).toBeTruthy();
+
+    fireEvent.press(screen.getByTestId("add-ticket-type-postcard"));
+    expect(screen.queryByTestId("add-mount-style-tape")).toBeNull();
+  });
 });

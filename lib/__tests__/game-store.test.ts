@@ -205,4 +205,97 @@ describe("useGames", () => {
     expect(newest?.board).toMatchObject({ x: 0, y: 0 });
     expect(older?.board).not.toMatchObject({ x: 0, y: 0 });
   });
+
+  it("saveBoardPlacement persists explicit board coordinates", async () => {
+    const stored = [
+      {
+        id: "g1",
+        title: "Game",
+        status: "playing",
+        ticketType: "polaroid",
+        notes: [],
+        board: { x: 0, y: 0, w: 1, h: 2, columns: 4 },
+      },
+    ];
+    mockGetItem.mockResolvedValue(JSON.stringify(stored));
+
+    const { result } = renderHook(() => useGames());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => {
+      await result.current.saveBoardPlacement!("g1", {
+        x: 2,
+        y: 3,
+        w: 1,
+        h: 2,
+        columns: 4,
+      });
+    });
+
+    expect(result.current.games[0].board).toMatchObject({
+      x: 2,
+      y: 3,
+      w: 1,
+      h: 2,
+      columns: 4,
+    });
+    expect(mockSetItem).toHaveBeenCalled();
+  });
+
+  it("reorderGame inserts card at target index and reapplies layout", async () => {
+    const stored = [
+      {
+        id: "g1",
+        title: "One",
+        status: "playing",
+        ticketType: "ticket",
+        notes: [],
+      },
+      {
+        id: "g2",
+        title: "Two",
+        status: "playing",
+        ticketType: "polaroid",
+        notes: [],
+      },
+    ];
+    mockGetItem.mockResolvedValue(JSON.stringify(stored));
+
+    const { result } = renderHook(() => useGames());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => {
+      await result.current.reorderGame!("g2", 0, 4);
+    });
+
+    expect(result.current.games[0].id).toBe("g2");
+    expect(result.current.games[0].board).toMatchObject({ x: 0, y: 0 });
+    expect(mockSetItem).toHaveBeenCalled();
+  });
+
+  it.each([
+    { id: "g-polaroid", type: "polaroid" },
+    { id: "g-postcard", type: "postcard" },
+    { id: "g-widget", type: "widget" },
+    { id: "g-ticket", type: "ticket" },
+    { id: "g-minimal", type: "minimal" },
+  ])("reorderGame can move $type to top-left", async ({ id, type }) => {
+    const stored = [
+      { id: "g-a", title: "A", status: "playing", ticketType: "ticket", notes: [] },
+      { id, title: "Target", status: "playing", ticketType: type, notes: [] },
+      { id: "g-b", title: "B", status: "playing", ticketType: "widget", notes: [] },
+    ];
+    mockGetItem.mockResolvedValue(JSON.stringify(stored));
+
+    const { result } = renderHook(() => useGames());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => {
+      await result.current.reorderGame!(id, 0, 4);
+    });
+
+    expect(result.current.games[0].id).toBe(id);
+    expect(result.current.games[0].board?.x).toBe(0);
+    expect(result.current.games[0].board?.y).toBe(0);
+  });
 });

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
+  type BoardPlacement,
   DEFAULT_CARD_MOUNT_STYLE,
   DEFAULT_POSTCARD_SIDE,
   DEFAULT_TICKET_TYPE,
@@ -209,5 +210,47 @@ export function useGames() {
     []
   );
 
-  return { games, playingGames, loading, saveNote, addGameWithInitialNote };
+  const saveBoardPlacement = useCallback(
+    async (gameId: string, board: BoardPlacement): Promise<void> => {
+      setGames((prev) => {
+        const next = prev.map((game) =>
+          game.id === gameId ? { ...game, board } : game
+        );
+        persistGames(next);
+        return next;
+      });
+    },
+    []
+  );
+
+  const reorderGame = useCallback(
+    async (
+      gameId: string,
+      toIndex: number,
+      columns: number = DEFAULT_BOARD_COLUMNS
+    ): Promise<void> => {
+      setGames((prev) => {
+        const fromIndex = prev.findIndex((game) => game.id === gameId);
+        if (fromIndex === -1) return prev;
+        const ordered = [...prev];
+        const [moved] = ordered.splice(fromIndex, 1);
+        const clampedIndex = Math.max(0, Math.min(toIndex, ordered.length));
+        ordered.splice(clampedIndex, 0, moved);
+        const next = applyBoardLayout(ordered, columns);
+        persistGames(next);
+        return next;
+      });
+    },
+    []
+  );
+
+  return {
+    games,
+    playingGames,
+    loading,
+    saveNote,
+    addGameWithInitialNote,
+    saveBoardPlacement,
+    reorderGame,
+  };
 }

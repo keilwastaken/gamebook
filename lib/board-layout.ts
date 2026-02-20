@@ -61,3 +61,57 @@ export function applyBoardLayout(games: Game[], columns: number): Game[] {
     };
   });
 }
+
+export function findBestInsertion(
+  games: Game[],
+  gameId: string,
+  desiredX: number,
+  desiredY: number,
+  columns: number
+): {
+  insertionIndex: number;
+  target: { x: number; y: number; w: number; h: number };
+} {
+  const moving = games.find((game) => game.id === gameId);
+  if (!moving) {
+    return {
+      insertionIndex: 0,
+      target: { x: 0, y: 0, w: 1, h: 1 },
+    };
+  }
+
+  const withoutMoving = games.filter((game) => game.id !== gameId);
+  let best: {
+    insertionIndex: number;
+    distance: number;
+    target: { x: number; y: number; w: number; h: number };
+  } | null = null;
+
+  for (let insertionIndex = 0; insertionIndex <= withoutMoving.length; insertionIndex += 1) {
+    const candidateOrder = [...withoutMoving];
+    candidateOrder.splice(insertionIndex, 0, moving);
+    const laidOut = applyBoardLayout(candidateOrder, columns);
+    const placed = laidOut.find((game) => game.id === gameId);
+    const board = placed?.board ?? { x: 0, y: 0, w: 1, h: 1, columns };
+    const distance = Math.abs(desiredX - board.x) + Math.abs(desiredY - board.y);
+
+    if (
+      !best ||
+      distance < best.distance ||
+      (distance === best.distance && insertionIndex < best.insertionIndex)
+    ) {
+      best = {
+        insertionIndex,
+        distance,
+        target: { x: board.x, y: board.y, w: board.w, h: board.h },
+      };
+    }
+  }
+
+  return (
+    best ?? {
+      insertionIndex: 0,
+      target: { x: 0, y: 0, w: 1, h: 1 },
+    }
+  );
+}

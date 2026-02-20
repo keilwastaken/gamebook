@@ -13,6 +13,7 @@ module.exports = {
     "components/**/*.{ts,tsx}",
     "hooks/**/*.{ts,tsx}",
     "constants/**/*.{ts,tsx}",
+    "lib/**/*.{ts,tsx}",
     "app/**/*.{ts,tsx}",
     "!**/__tests__/**",
     "!**/*.d.ts",

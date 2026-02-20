@@ -5,3 +5,4 @@ export { PostcardCard } from "./postcard-card";
 export { WidgetCard } from "./widget-card";
 export { TicketCard } from "./ticket-card";
 export { MinimalCard } from "./minimal-card";
+export { PlayingCard } from "./playing-card";

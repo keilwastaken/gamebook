@@ -1,19 +1,22 @@
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import {
+  Animated,
   Image,
-  View,
-  Text,
+  Pressable,
   StyleSheet,
+  Text,
+  View,
   type ImageSourcePropType,
 } from "react-native";
 
 import { palette } from "@/constants/palette";
 import { CozyShadows } from "@/utils/shadows";
-import type { GameCardData } from "./types";
+import type { Game } from "@/lib/types";
 import { randomRotation } from "./types";
 
 export interface TicketCardProps {
-  game: GameCardData;
+  game: Game;
+  onPress?: (gameId: string) => void;
   seed?: number;
   rotation?: number;
 }
@@ -23,9 +26,11 @@ const PLACEHOLDER_IMAGE =
 
 export function TicketCard({
   game,
+  onPress,
   seed = 4,
   rotation: rotationOverride,
 }: TicketCardProps) {
+  const scaleAnim = useRef(new Animated.Value(1)).current;
   const rotation = useMemo(
     () => rotationOverride ?? randomRotation(seed),
     [rotationOverride, seed]
@@ -34,30 +39,95 @@ export function TicketCard({
     ? { uri: game.imageUri }
     : { uri: PLACEHOLDER_IMAGE };
 
-  return (
-    <View style={[styles.wrapper, { transform: [{ rotate: `${rotation}deg` }] }]}>
-      <View style={[styles.card, CozyShadows.base]}>
-        <View style={styles.stub}>
-          <Text style={styles.admitOne}>ADMIT ONE</Text>
+  const handlePressIn = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 0.95,
+      useNativeDriver: true,
+      speed: 50,
+      bounciness: 4,
+    }).start();
+  };
+
+  const handlePressOut = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 1,
+      useNativeDriver: true,
+      speed: 20,
+      bounciness: 12,
+    }).start();
+  };
+
+  const handlePress = () => {
+    onPress?.(game.id);
+  };
+
+  const cardContent = (
+    <View style={[styles.card, CozyShadows.base]}>
+      <View style={styles.stub}>
+        <View
+          style={[
+            styles.pin,
+            { backgroundColor: palette.clay[500] },
+            CozyShadows.micro,
+          ]}
+        />
+        <Text style={styles.admitOne}>ADMIT ONE</Text>
+      </View>
+      <View style={styles.perforationHoleTop} />
+      <View style={styles.perforationHoleBottom} />
+      <View style={styles.main}>
+        <View style={styles.thumb}>
+          <Image
+            source={imageSource as ImageSourcePropType}
+            style={styles.image}
+            resizeMode="cover"
+          />
         </View>
-        <View style={styles.perforationHoleTop} />
-        <View style={styles.perforationHoleBottom} />
-        <View style={styles.main}>
-          <View style={styles.thumb}>
-            <Image
-              source={imageSource as ImageSourcePropType}
-              style={styles.image}
-              resizeMode="cover"
-            />
-          </View>
-          <View style={styles.info}>
-            <Text style={styles.label}>NOW SHOWING</Text>
-            <Text style={styles.title} numberOfLines={2}>
-              {game.title}
+        <View style={styles.info}>
+          <Text style={styles.title} numberOfLines={1}>
+            {game.title}
+          </Text>
+          {game.lastNote ? (
+            <Text
+              style={styles.noteText}
+              numberOfLines={2}
+              testID={`playing-card-note-${game.id}`}
+            >
+              {game.lastNote.whereLeftOff}
             </Text>
-          </View>
+          ) : (
+            <Text style={styles.label}>
+              {game.playtime ?? "Now playing"}
+            </Text>
+          )}
         </View>
       </View>
+    </View>
+  );
+
+  return (
+    <View
+      style={[styles.wrapper, { transform: [{ rotate: `${rotation}deg` }] }]}
+      testID={`playing-card-${game.id}`}
+    >
+      {onPress ? (
+        <Pressable
+          onPress={handlePress}
+          onPressIn={handlePressIn}
+          onPressOut={handlePressOut}
+          testID={`playing-card-add-${game.id}`}
+          accessibilityLabel={`Update bookmark for ${game.title}`}
+          accessibilityRole="button"
+        >
+          <Animated.View
+            style={[styles.pressableInner, { transform: [{ scale: scaleAnim }] }]}
+          >
+            {cardContent}
+          </Animated.View>
+        </Pressable>
+      ) : (
+        <View testID={`playing-card-${game.id}`}>{cardContent}</View>
+      )}
     </View>
   );
 }
@@ -65,12 +135,16 @@ export function TicketCard({
 const styles = StyleSheet.create({
   wrapper: {
     alignSelf: "flex-start",
+    marginBottom: 16,
+  },
+  pressableInner: {
+    alignSelf: "flex-start",
   },
   card: {
     flexDirection: "row",
     backgroundColor: palette.cream.DEFAULT,
-    height: 72,
-    width: 200,
+    height: 80,
+    width: 220,
     borderWidth: 2,
     borderColor: "rgba(139, 99, 66, 0.2)",
     overflow: "hidden",
@@ -83,6 +157,17 @@ const styles = StyleSheet.create({
     borderRightColor: "rgba(139, 99, 66, 0.3)",
     alignItems: "center",
     justifyContent: "center",
+    position: "relative",
+  },
+  pin: {
+    position: "absolute",
+    top: -6,
+    left: "50%",
+    marginLeft: -6,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    zIndex: 2,
   },
   admitOne: {
     fontSize: 8,
@@ -131,17 +216,26 @@ const styles = StyleSheet.create({
   },
   info: {
     flex: 1,
-  },
-  label: {
-    fontSize: 9,
-    color: palette.warm[600],
-    letterSpacing: 1,
-    marginBottom: 2,
+    minWidth: 0,
   },
   title: {
     fontSize: 13,
     fontWeight: "700",
+    fontFamily: "Nunito",
     color: palette.text.primary,
-    lineHeight: 16,
+    marginBottom: 2,
+  },
+  label: {
+    fontSize: 9,
+    fontFamily: "Nunito",
+    color: palette.text.secondary,
+    letterSpacing: 0.5,
+  },
+  noteText: {
+    fontSize: 10,
+    fontFamily: "Nunito",
+    fontStyle: "italic",
+    color: palette.text.secondary,
+    lineHeight: 13,
   },
 });

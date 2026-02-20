@@ -2,9 +2,11 @@ import { Tabs } from "expo-router";
 import React from "react";
 
 import { TabBar } from "@/components/tab-bar";
+import { GamesProvider } from "@/lib/games-context";
 
 export default function TabLayout() {
   return (
+    <GamesProvider>
     <Tabs
       tabBar={(props) => <TabBar {...props} />}
       screenOptions={{
@@ -18,5 +20,6 @@ export default function TabLayout() {
       <Tabs.Screen name="favorites" />
       <Tabs.Screen name="profile" />
     </Tabs>
+    </GamesProvider>
   );
 }

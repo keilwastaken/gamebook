@@ -1,48 +1,92 @@
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { useCallback, useState } from "react";
+import {
+  ActivityIndicator,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 
 import { palette } from "@/constants/palette";
-import {
-  MinimalCard,
-  PolaroidCard,
-  PostcardCard,
-  TicketCard,
-  WidgetCard,
-} from "@/components/cards";
-
-const DEMO_GAMES = [
-  { title: "Stardew Valley", playtime: "24h 12m", progress: 0.6 },
-  { title: "Spiritfarer", playtime: "8h 45m", progress: 0.3 },
-  { title: "Animal Crossing", playtime: "120h 0m", progress: 0.9 },
-  { title: "Elden Ring", playtime: "45h 30m", progress: 0.75 },
-  { title: "Cozy Grove", playtime: "15h 20m", progress: 0.4 },
-];
+import { TicketCard } from "@/components/cards";
+import { JournalOverlay } from "@/components/journal-overlay";
+import { useGamesContext } from "@/lib/games-context";
+import type { Game } from "@/lib/types";
 
 export default function HomeScreen() {
+  const { playingGames, loading, saveNote } = useGamesContext();
+  const [activeGame, setActiveGame] = useState<Game | null>(null);
+
+  const handleAddNote = useCallback(
+    (gameId: string) => {
+      const game = playingGames.find((g) => g.id === gameId);
+      if (game) setActiveGame(game);
+    },
+    [playingGames]
+  );
+
+  const handleSaveNote = useCallback(
+    async (note: { whereLeftOff: string; quickThought?: string; progress: number }) => {
+      if (!activeGame) return;
+      await saveNote(activeGame.id, note);
+      setActiveGame(null);
+    },
+    [activeGame, saveNote]
+  );
+
+  const handleCloseJournal = useCallback(() => {
+    setActiveGame(null);
+  }, []);
+
   return (
-    <ScrollView
-      testID="screen-home"
-      contentContainerStyle={styles.scrollContent}
-      style={styles.scroll}
-      showsVerticalScrollIndicator={false}
-    >
-      <View style={styles.header}>
-        <Text style={styles.title}>Collection Styles</Text>
-        <Text style={styles.subtitle}>Tap to change style?</Text>
-      </View>
-      <View style={styles.board}>
-        <View style={styles.row}>
-          <PolaroidCard game={DEMO_GAMES[0]} seed={1} />
-          <PostcardCard game={DEMO_GAMES[1]} seed={2} />
+    <>
+      <ScrollView
+        testID="screen-home"
+        contentContainerStyle={styles.scrollContent}
+        style={styles.scroll}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.header}>
+          <Text style={styles.title}>Currently Playing</Text>
+          <Text style={styles.subtitle}>
+            {loading
+              ? "Loading..."
+              : `${playingGames.length} game${playingGames.length !== 1 ? "s" : ""}`}
+          </Text>
         </View>
-        <View style={[styles.row, styles.rowOffset]}>
-          <WidgetCard game={DEMO_GAMES[2]} seed={3} />
-          <TicketCard game={DEMO_GAMES[3]} seed={4} />
-        </View>
-        <View style={styles.row}>
-          <MinimalCard game={DEMO_GAMES[4]} />
-        </View>
-      </View>
-    </ScrollView>
+
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator color={palette.sage[400]} size="large" />
+          </View>
+        ) : playingGames.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyText}>
+              No games in progress yet.{"\n"}Add one to start your journey!
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.ticketGrid}>
+            {playingGames.map((game, index) => (
+              <TicketCard
+                key={game.id}
+                game={game}
+                onPress={handleAddNote}
+                seed={index + 1}
+              />
+            ))}
+          </View>
+        )}
+      </ScrollView>
+
+      {activeGame && (
+        <JournalOverlay
+          game={activeGame}
+          onSave={handleSaveNote}
+          onClose={handleCloseJournal}
+        />
+      )}
+    </>
   );
 }
 
@@ -60,23 +104,39 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 20,
     fontWeight: "700",
+    fontFamily: "Nunito",
     color: palette.warm[600],
     opacity: 0.9,
   },
   subtitle: {
     fontSize: 12,
+    fontFamily: "Nunito",
     color: palette.warm[600],
     opacity: 0.6,
     marginTop: 2,
   },
-  board: {},
-  row: {
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingTop: 60,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingTop: 60,
+  },
+  emptyText: {
+    fontSize: 14,
+    fontFamily: "Nunito",
+    color: palette.text.muted,
+    textAlign: "center",
+    lineHeight: 22,
+  },
+  ticketGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 16,
-    marginBottom: 24,
-  },
-  rowOffset: {
-    marginLeft: 24,
   },
 });

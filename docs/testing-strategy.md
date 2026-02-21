@@ -59,6 +59,39 @@ pnpm e2e:build:ios     # Build Detox iOS test app
 pnpm e2e:test:ios      # Run Detox E2E on iOS simulator
 ```
 
+## Mutation Testing (Drag/Drop Guardrail)
+
+Use mutation testing to verify drag/drop tests fail when core logic is altered.
+This catches "tests pass but behavior regresses" cases.
+
+Configured scope:
+
+- `lib/board-layout.ts`
+- `lib/game-store.ts`
+
+Optional deep-audit scope (slower):
+
+- `app/(tabs)/index.tsx`
+
+Run locally:
+
+```bash
+pnpm test:dragdrop:regression          # Fast drag/drop regression suite (< 1 min)
+pnpm test:mutation:dragdrop            # Fast mutation dry-run check (core scope)
+pnpm test:mutation:dragdrop:ci         # Core mutation run + HTML report
+pnpm test:mutation:dragdrop:full:dry   # Dry-run check (core + UI drag screen)
+pnpm test:mutation:dragdrop:full       # Deep run (slower, use on release branch/nightly)
+```
+
+Default mutation thresholds in `stryker.dragdrop.conf.cjs`:
+
+- `high`: 85
+- `low`: 70
+- `break`: 65
+
+If the mutation score drops below `break`, treat it as a release blocker for
+drag/drop changes until missing tests are added.
+
 ## Visual UI Verification
 
 For layout-sensitive changes (shadows, rotations, spacing), use the

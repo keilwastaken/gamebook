@@ -9,8 +9,9 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
+import * as Haptics from "expo-haptics";
 
-import { BoardViewport } from "@/components/board";
+import { BoardViewport, type BoardViewportHandle } from "@/components/board";
 import { palette } from "@/constants/palette";
 import {
   MinimalCard,
@@ -46,6 +47,13 @@ const BASE_CARD_SIZE: Record<TicketType, { width: number; height: number }> = {
   minimal: { width: 220, height: 84 },
 };
 
+const AUTO_SCROLL_EDGE_THRESHOLD = 112;
+const AUTO_SCROLL_MIN_SPEED = 28;
+const AUTO_SCROLL_MAX_SPEED = 340;
+const AUTO_SCROLL_CAP_SLOWDOWN_PX = 96;
+const MAX_DRAG_ROW_COUNT = 12;
+const HAPTIC_TICK_MIN_INTERVAL_MS = 45;
+
 export default function HomeScreen() {
   const {
     playingGames,
@@ -78,16 +86,28 @@ export default function HomeScreen() {
   const consumeNextPress = useRef(false);
   const dragBaseSpanRef = useRef<{ w: number; h: number }>({ w: 1, h: 1 });
   const targetSlotRef = useRef<{ x: number; y: number; w: number; h: number } | null>(null);
+  const boardViewportRef = useRef<BoardViewportHandle>(null);
   const boardRef = useRef<View>(null);
+  const boardTopInScrollRef = useRef(0);
   const boardOriginRef = useRef({ x: 0, y: 0 });
   const dragOffsetRef = useRef({ x: 0, y: 0 });
   const dropTargetKeyRef = useRef("");
+  const dragStartScrollOffsetRef = useRef(0);
+  const scrollOffsetRef = useRef(0);
+  const scrollViewportHeightRef = useRef(0);
+  const scrollContentHeightRef = useRef(0);
+  const autoScrollPointerRef = useRef<{ x: number; y: number } | null>(null);
+  const autoScrollFrameRef = useRef<number | null>(null);
+  const autoScrollLastTsRef = useRef<number | null>(null);
+  const dragTargetHapticAtRef = useRef(0);
   const dragXY = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
+  const jiggle = useRef(new Animated.Value(0)).current;
+  const jiggleLoopRef = useRef<Animated.CompositeAnimation | null>(null);
   const dropTargetLeft = useRef(new Animated.Value(0)).current;
   const dropTargetTop = useRef(new Animated.Value(0)).current;
   const dropTargetWidth = useRef(new Animated.Value(0)).current;
   const dropTargetHeight = useRef(new Animated.Value(0)).current;
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const boardColumns = DEFAULT_BOARD_COLUMNS;
   const { cellWidth, rowHeight } = useMemo(
     () => getBoardMetrics(width, boardColumns),
@@ -119,6 +139,10 @@ export default function HomeScreen() {
     dragVisualSpan.w * cellWidth + (dragVisualSpan.w - 1) * BOARD_GAP;
   const dragSlotHeight =
     dragVisualSpan.h * rowHeight + (dragVisualSpan.h - 1) * BOARD_GAP;
+  const jiggleRotation = jiggle.interpolate({
+    inputRange: [-1, 0, 1],
+    outputRange: ["-0.7deg", "0deg", "0.7deg"],
+  });
 
   const getCardRenderScale = useCallback(
     (ticketType: TicketType) => {
@@ -208,7 +232,20 @@ export default function HomeScreen() {
     }
   }, [boardGames, activeGame]);
 
+  const cancelAutoScroll = useCallback(() => {
+    if (autoScrollFrameRef.current !== null) {
+      cancelAnimationFrame(autoScrollFrameRef.current);
+      autoScrollFrameRef.current = null;
+    }
+    autoScrollLastTsRef.current = null;
+    autoScrollPointerRef.current = null;
+  }, []);
+
   const stopDragging = useCallback(() => {
+    cancelAutoScroll();
+    jiggleLoopRef.current?.stop();
+    jiggleLoopRef.current = null;
+    jiggle.setValue(0);
     setDraggingId(null);
     setDragVisualSpan({ w: 1, h: 1 });
     setDragVisualScale(1);
@@ -219,7 +256,29 @@ export default function HomeScreen() {
     dropTargetConflictKeyRef.current = "";
     dropTargetRef.current = null;
     dropTargetKeyRef.current = "";
-  }, []);
+    dragTargetHapticAtRef.current = 0;
+    dragStartScrollOffsetRef.current = scrollOffsetRef.current;
+  }, [cancelAutoScroll, jiggle]);
+
+  useEffect(() => () => {
+    cancelAutoScroll();
+  }, [cancelAutoScroll]);
+
+  useEffect(() => {
+    jiggleLoopRef.current?.stop();
+    jiggleLoopRef.current = null;
+    jiggle.setValue(0);
+
+    if (!draggingId) return;
+    const sequence = Animated.sequence([
+      Animated.timing(jiggle, { toValue: -1, duration: 120, useNativeDriver: true }),
+      Animated.timing(jiggle, { toValue: 1, duration: 150, useNativeDriver: true }),
+      Animated.timing(jiggle, { toValue: 0, duration: 120, useNativeDriver: true }),
+    ]);
+    const loop = Animated.loop(sequence);
+    jiggleLoopRef.current = loop;
+    loop.start();
+  }, [draggingId, jiggle]);
 
   const updateDropTarget = useCallback(
     (left: number, top: number) => {
@@ -250,9 +309,11 @@ export default function HomeScreen() {
         Math.ceil((top + dragHeight) / strideY) + 3,
         6
       );
+      const maxCandidateY = Math.max(0, MAX_DRAG_ROW_COUNT - span.h);
+      const cappedRowsToScan = Math.min(maxRowsToScan, maxCandidateY);
 
       let bestSlot: { x: number; y: number; distSq: number } | null = null;
-      for (let candidateY = 0; candidateY <= maxRowsToScan; candidateY += 1) {
+      for (let candidateY = 0; candidateY <= cappedRowsToScan; candidateY += 1) {
         for (let candidateX = 0; candidateX <= boardColumns - span.w; candidateX += 1) {
           const slotCenterX = candidateX * strideX + dragWidth / 2;
           const slotCenterY = candidateY * strideY + dragHeight / 2;
@@ -304,7 +365,13 @@ export default function HomeScreen() {
 
       const key = `${desiredX}-${desiredY}-${desiredW}-${desiredH}`;
       if (key !== dropTargetKeyRef.current) {
+        const prevKey = dropTargetKeyRef.current;
         dropTargetKeyRef.current = key;
+        const now = Date.now();
+        if (prevKey && now - dragTargetHapticAtRef.current >= HAPTIC_TICK_MIN_INTERVAL_MS) {
+          dragTargetHapticAtRef.current = now;
+          void Haptics.selectionAsync().catch(() => {});
+        }
         const nextTarget = {
           x: desiredX,
           y: desiredY,
@@ -339,6 +406,116 @@ export default function HomeScreen() {
     ]
   );
 
+  const positionDragAtPointer = useCallback(
+    (pointerX: number, pointerY: number) => {
+      if (!draggingId) return;
+      const baseSpan = dragBaseSpanRef.current;
+      const scrollDelta = scrollOffsetRef.current - dragStartScrollOffsetRef.current;
+      const rawLeft = pointerX - boardOriginRef.current.x - dragOffsetRef.current.x;
+      const rawTop = pointerY - boardOriginRef.current.y - dragOffsetRef.current.y + scrollDelta;
+      const maxLeft =
+        Math.max(0, boardColumns - baseSpan.w) * (cellWidth + BOARD_GAP);
+      const maxTop =
+        Math.max(0, MAX_DRAG_ROW_COUNT - baseSpan.h) * (rowHeight + BOARD_GAP);
+      const left = Math.max(0, Math.min(maxLeft, rawLeft));
+      const top = Math.max(0, Math.min(maxTop, rawTop));
+      dragXY.setValue({ x: left, y: top });
+      updateDropTarget(left, top);
+    },
+    [draggingId, boardColumns, cellWidth, rowHeight, dragXY, updateDropTarget]
+  );
+
+  const getAutoScrollVelocity = useCallback((pointerY: number, viewportHeight: number) => {
+      const edgeThreshold = Math.min(
+        AUTO_SCROLL_EDGE_THRESHOLD,
+        Math.max(28, Math.floor(viewportHeight * 0.45))
+      );
+      const topEdge = edgeThreshold;
+      const bottomEdge = viewportHeight - edgeThreshold;
+      let direction = 0;
+      let intensity = 0;
+
+      if (pointerY < topEdge) {
+        direction = -1;
+        intensity = Math.min(1, (topEdge - pointerY) / edgeThreshold);
+      } else if (pointerY > bottomEdge) {
+        direction = 1;
+        intensity = Math.min(1, (pointerY - bottomEdge) / edgeThreshold);
+      } else {
+        return 0;
+      }
+
+      const eased = intensity * intensity;
+      const speed =
+        AUTO_SCROLL_MIN_SPEED + (AUTO_SCROLL_MAX_SPEED - AUTO_SCROLL_MIN_SPEED) * eased;
+      return direction * speed;
+  }, []);
+
+  const tickAutoScroll = useCallback(
+    (timestamp: number) => {
+      autoScrollFrameRef.current = null;
+      if (!draggingId) {
+        autoScrollLastTsRef.current = null;
+        return;
+      }
+      const pointer = autoScrollPointerRef.current;
+      if (!pointer) {
+        autoScrollLastTsRef.current = null;
+        autoScrollFrameRef.current = requestAnimationFrame(tickAutoScroll);
+        return;
+      }
+      const viewportHeight = scrollViewportHeightRef.current || height;
+      const contentHeight = scrollContentHeightRef.current;
+      const contentMaxOffset = Math.max(0, contentHeight - viewportHeight);
+      const maxGridHeight =
+        MAX_DRAG_ROW_COUNT * rowHeight + (MAX_DRAG_ROW_COUNT - 1) * BOARD_GAP;
+      const gridMaxOffset = Math.max(
+        0,
+        boardTopInScrollRef.current + maxGridHeight - viewportHeight
+      );
+      const maxOffset = Math.min(contentMaxOffset, gridMaxOffset);
+      const velocity = getAutoScrollVelocity(pointer.y, viewportHeight);
+      if (maxOffset <= 0 || velocity === 0) {
+        autoScrollLastTsRef.current = null;
+        return;
+      }
+      const previousTs = autoScrollLastTsRef.current;
+      const dt =
+        previousTs === null
+          ? 1 / 60
+          : Math.min(0.05, Math.max(0.001, (timestamp - previousTs) / 1000));
+      autoScrollLastTsRef.current = timestamp;
+
+      const remainingUp = scrollOffsetRef.current;
+      const remainingDown = maxOffset - scrollOffsetRef.current;
+      const remainingInDirection = velocity < 0 ? remainingUp : remainingDown;
+      const capSlowdown = Math.min(1, remainingInDirection / AUTO_SCROLL_CAP_SLOWDOWN_PX);
+      const adjustedVelocity = velocity * capSlowdown;
+      const delta = adjustedVelocity * dt;
+      if (Math.abs(delta) >= 0.1) {
+        const nextOffset = Math.max(0, Math.min(maxOffset, scrollOffsetRef.current + delta));
+        if (nextOffset !== scrollOffsetRef.current) {
+          scrollOffsetRef.current = nextOffset;
+          boardViewportRef.current?.scrollTo({ y: nextOffset, animated: false });
+          positionDragAtPointer(pointer.x, pointer.y);
+        }
+      }
+      autoScrollFrameRef.current = requestAnimationFrame(tickAutoScroll);
+    },
+    [draggingId, getAutoScrollVelocity, height, rowHeight, positionDragAtPointer]
+  );
+
+  const queueAutoScrollForPointer = useCallback(
+    (pointerX: number, pointerY: number) => {
+      autoScrollPointerRef.current = { x: pointerX, y: pointerY };
+      if (autoScrollFrameRef.current === null) {
+        autoScrollLastTsRef.current = null;
+        autoScrollFrameRef.current = requestAnimationFrame(tickAutoScroll);
+      }
+    },
+    [tickAutoScroll]
+  );
+
   const handleDrop = useCallback(async () => {
     const currentTarget = dropTargetRef.current;
     if (!draggingId || !currentTarget) return;
@@ -359,16 +536,8 @@ export default function HomeScreen() {
         onPanResponderTerminationRequest: () => false,
         onPanResponderMove: (_evt, gestureState) => {
           if (!draggingId) return;
-          const left = Math.max(
-            0,
-            gestureState.moveX - boardOriginRef.current.x - dragOffsetRef.current.x
-          );
-          const top = Math.max(
-            0,
-            gestureState.moveY - boardOriginRef.current.y - dragOffsetRef.current.y
-          );
-          dragXY.setValue({ x: left, y: top });
-          updateDropTarget(left, top);
+          queueAutoScrollForPointer(gestureState.moveX, gestureState.moveY);
+          positionDragAtPointer(gestureState.moveX, gestureState.moveY);
         },
         onPanResponderRelease: () => {
           void handleDrop();
@@ -377,7 +546,7 @@ export default function HomeScreen() {
           stopDragging();
         },
       }),
-    [draggingId, dragXY, handleDrop, stopDragging, updateDropTarget]
+    [draggingId, handleDrop, positionDragAtPointer, queueAutoScrollForPointer, stopDragging]
   );
 
   const draggingGame = useMemo(
@@ -402,13 +571,29 @@ export default function HomeScreen() {
     return <PolaroidCard {...baseProps} />;
   }, []);
 
+  const handleBoardScrollOffsetChange = useCallback((offsetY: number) => {
+    scrollOffsetRef.current = offsetY;
+  }, []);
+
+  const handleBoardViewportHeightChange = useCallback((viewportHeight: number) => {
+    scrollViewportHeightRef.current = viewportHeight;
+  }, []);
+
+  const handleBoardContentHeightChange = useCallback((contentHeight: number) => {
+    scrollContentHeightRef.current = contentHeight;
+  }, []);
+
   return (
     <>
       <BoardViewport
+        ref={boardViewportRef}
         testID="screen-home"
         style={styles.scroll}
         dragging={draggingId !== null}
         screenWidth={width}
+        onScrollOffsetChange={handleBoardScrollOffsetChange}
+        onViewportHeightChange={handleBoardViewportHeightChange}
+        onContentHeightChange={handleBoardContentHeightChange}
       >
         <View style={styles.header}>
           <Text style={styles.title}>Currently Playing</Text>
@@ -433,7 +618,8 @@ export default function HomeScreen() {
           <View
             ref={boardRef}
             style={[styles.board, { height: boardHeight }]}
-            onLayout={() => {
+            onLayout={(event) => {
+              boardTopInScrollRef.current = event.nativeEvent.layout.y;
               boardRef.current?.measureInWindow((x, y) => {
                 boardOriginRef.current = { x, y };
               });
@@ -464,6 +650,8 @@ export default function HomeScreen() {
                       const locationX = event.nativeEvent.locationX;
                       const locationY = event.nativeEvent.locationY;
                       consumeNextPress.current = true;
+                      dragStartScrollOffsetRef.current = scrollOffsetRef.current;
+                      dragTargetHapticAtRef.current = 0;
                       boardRef.current?.measureInWindow((x, y) => {
                         boardOriginRef.current = { x, y };
                       });
@@ -481,7 +669,10 @@ export default function HomeScreen() {
                       setDragIndex(index);
                       const initialTarget = {
                         x: board.x,
-                        y: board.y,
+                        y: Math.min(
+                          board.y,
+                          Math.max(0, MAX_DRAG_ROW_COUNT - lockedSpan.h)
+                        ),
                         w: lockedSpan.w,
                         h: lockedSpan.h,
                       };
@@ -518,16 +709,22 @@ export default function HomeScreen() {
                     ]}
                   >
                     <View style={styles.slotCenter} testID={`playing-card-${game.id}`}>
-                      <View
+                      <Animated.View
                         style={{
                           transform: [
                             { scale },
-                            { rotate: draggingId === game.id ? "0.8deg" : "0deg" },
+                            {
+                              rotate: draggingId === game.id
+                                ? "0.8deg"
+                                : draggingId
+                                  ? jiggleRotation
+                                  : "0deg",
+                            },
                           ],
                         }}
                       >
                         {renderCardVisual(game, index)}
-                      </View>
+                      </Animated.View>
                     </View>
                   </Pressable>
                 </View>

@@ -8,30 +8,35 @@ const mockTabsScreen = jest.fn();
 const mockGamesProvider = jest.fn(({ children }: { children: React.ReactNode }) => (
   <>{children}</>
 ));
-const mockTabBar = jest.fn(() => null);
+const mockTabBar = jest.fn((_props?: unknown) => null);
 
 jest.mock("expo-router", () => {
   const React = require("react");
 
-  const Tabs = ({ children, ...props }: { children: React.ReactNode }) => {
+  function Tabs({ children, ...props }: { children: React.ReactNode }) {
     mockTabsRender(props);
     return <>{children}</>;
-  };
-  Tabs.Screen = ({ name }: { name: string }) => {
+  }
+  function TabsScreen({ name }: { name: string }) {
     mockTabsScreen(name);
     return null;
-  };
+  }
+  TabsScreen.displayName = "TabsScreenMock";
+  Tabs.Screen = TabsScreen;
 
   return { Tabs };
 });
 
 jest.mock("@/lib/games-context", () => ({
-  GamesProvider: ({ children }: { children: React.ReactNode }) =>
-    mockGamesProvider({ children }),
+  GamesProvider: function GamesProviderMock({ children }: { children: React.ReactNode }) {
+    return mockGamesProvider({ children });
+  },
 }));
 
 jest.mock("@/components/tab-bar", () => ({
-  TabBar: (props: unknown) => mockTabBar(props),
+  TabBar: function TabBarMock(props: unknown) {
+    return mockTabBar(props);
+  },
 }));
 
 describe("TabLayout", () => {

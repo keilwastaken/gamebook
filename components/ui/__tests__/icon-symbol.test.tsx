@@ -1,31 +1,34 @@
 import React from "react";
-import { View } from "react-native";
 import { render, screen } from "@testing-library/react-native";
 
-import { IconSymbol as FallbackIconSymbol } from "../icon-symbol.tsx";
+import { IconSymbol as FallbackIconSymbol } from "../icon-symbol";
 import { IconSymbol as IOSIconSymbol } from "../icon-symbol.ios";
 
 jest.mock("@expo/vector-icons/MaterialIcons", () => {
   const React = require("react");
   const { View } = require("react-native");
-  return ({ name, size, color, style }: Record<string, unknown>) => (
-    <View
-      testID="material-icon"
-      iconName={name}
-      iconSize={size}
-      iconColor={color}
-      iconStyle={style}
-    />
-  );
+  function MaterialIconMock({ name, size, color, style }: Record<string, unknown>) {
+    return (
+      <View
+        testID="material-icon"
+        iconName={name}
+        iconSize={size}
+        iconColor={color}
+        iconStyle={style}
+      />
+    );
+  }
+  return MaterialIconMock;
 });
 
 jest.mock("expo-symbols", () => {
   const React = require("react");
   const { View } = require("react-native");
+  function SymbolViewMock(props: Record<string, unknown>) {
+    return <View testID="symbol-view" {...props} />;
+  }
   return {
-    SymbolView: (props: Record<string, unknown>) => (
-      <View testID="symbol-view" {...props} />
-    ),
+    SymbolView: SymbolViewMock,
   };
 });
 

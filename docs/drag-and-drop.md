@@ -18,6 +18,7 @@ Current product contract is **strict no-overlap placement**:
 2. Dragging onto any occupied cell is rejected.
 3. No auto-push, no insert+reflow, no implicit card swapping.
 4. Conflict feedback is per-cell (only blocked grid cells are marked).
+5. Drag targeting/auto-scroll is capped to the first 12 board rows.
 
 ## Why This Contract Exists
 
@@ -117,6 +118,8 @@ Responsibilities:
 5. Apply hysteresis to avoid jitter/flicker near boundaries.
 6. Compute conflicts via `getDropTargetConflictCells`.
 7. Update animated target indicator + per-cell conflict markers.
+8. Trigger a haptic selection tick when the resolved slot key changes.
+9. Apply edge auto-scroll when pointer nears top/bottom viewport edges.
 
 ### Drop Commit
 
@@ -185,6 +188,8 @@ During drag:
 - Neutral grid cells are always rendered as board scaffolding.
 - Active target rectangle animates with spring motion.
 - Occupied overlap cells render as explicit conflict cells.
+- Non-dragged cards run a subtle jiggle animation while drag is active.
+- Dropping target-cell transitions emit light haptic ticks for wayfinding.
 
 This keeps feedback local and actionable: users see exactly which cells block a
 commit.
@@ -209,6 +214,7 @@ These tests are the release guardrail for drag/drop behavior.
 - `/Users/keilaloia/gamebook/app/(tabs)/__tests__/index.test.tsx`
   - pan responder drag flow
   - dynamic span morph behavior
+  - haptic selection tick on target transitions
   - overlap cell highlighting contract
   - drop target payload passed to store
 

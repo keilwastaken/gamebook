@@ -40,14 +40,7 @@ describe("JournalOverlay", () => {
       .mockImplementation((() => instantAnimation()) as never);
     parallelSpy = jest
       .spyOn(Animated, "parallel")
-      .mockImplementation((animations: Array<{ start?: (cb?: () => void) => void }>) => ({
-        start: (callback?: () => void) => {
-          animations.forEach((animation) => animation.start?.());
-          callback?.();
-        },
-        stop: jest.fn(),
-        reset: jest.fn(),
-      }));
+      .mockImplementation((() => instantAnimation()) as never);
   });
 
   afterEach(() => {

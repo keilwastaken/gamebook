@@ -2,6 +2,7 @@ import React from "react";
 import { PanResponder } from "react-native";
 import * as ReactNative from "react-native";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react-native";
+import * as Haptics from "expo-haptics";
 
 import HomeScreen from "../index";
 import { palette } from "@/constants/palette";
@@ -16,13 +17,21 @@ jest.mock("@/lib/games-context", () => ({
   useGamesContext: jest.fn(),
 }));
 
+jest.mock("expo-haptics", () => ({
+  selectionAsync: jest.fn(() => Promise.resolve()),
+}));
+
 jest.mock("@/components/cards", () => {
   const React = require("react");
   const { Text } = require("react-native");
 
-  const makeCard = (kind: string) => ({ game }: { game: { id?: string; title: string } }) => (
-    <Text testID={`mock-card-${kind}-${game.id ?? game.title}`}>{game.title}</Text>
-  );
+  const makeCard = (kind: string) => {
+    const Card = ({ game }: { game: { id?: string; title: string } }) => (
+      <Text testID={`mock-card-${kind}-${game.id ?? game.title}`}>{game.title}</Text>
+    );
+    Card.displayName = `Mock${kind}Card`;
+    return Card;
+  };
 
   return {
     MinimalCard: makeCard("minimal"),
@@ -34,7 +43,7 @@ jest.mock("@/components/cards", () => {
 });
 
 jest.mock("@/components/journal-overlay", () => ({
-  JournalOverlay: ({
+  JournalOverlay: function JournalOverlayMock({
     game,
     onSave,
     onClose,
@@ -42,7 +51,7 @@ jest.mock("@/components/journal-overlay", () => ({
     game: { title: string };
     onSave: (note: { whereLeftOff: string; quickThought?: string }) => void;
     onClose: () => void;
-  }) => {
+  }) {
     const React = require("react");
     const { Pressable, Text, View } = require("react-native");
     return (
@@ -84,6 +93,7 @@ describe("[dragdrop-regression] HomeScreen", () => {
     mockSaveNote.mockReset().mockResolvedValue(undefined);
     mockMoveGameToBoardTarget.mockReset().mockResolvedValue(undefined);
     mockUseGamesContext.mockReset();
+    (Haptics.selectionAsync as jest.Mock).mockClear();
     capturedPanResponderConfig = null;
     panResponderSpy = jest.spyOn(PanResponder, "create").mockImplementation((config) => {
       capturedPanResponderConfig = config;
@@ -267,6 +277,7 @@ describe("[dragdrop-regression] HomeScreen", () => {
         4
       )
     );
+    expect(Haptics.selectionAsync).toHaveBeenCalled();
 
     await act(async () => {
       capturedPanResponderConfig.onPanResponderTerminate();
@@ -372,6 +383,52 @@ describe("[dragdrop-regression] HomeScreen", () => {
           4
         )
       );
+    } finally {
+      windowSpy.mockRestore();
+    }
+  });
+
+  it("caps drag drop target within 12 grid rows", async () => {
+    const windowSpy = jest
+      .spyOn(ReactNative, "useWindowDimensions")
+      .mockReturnValue({ width: 232, height: 900, scale: 2, fontScale: 1 });
+
+    try {
+      mockUseGamesContext.mockReturnValue(
+        makeContext({
+          loading: false,
+          playingGames: [
+            {
+              id: "drag-cap",
+              title: "Drag Cap",
+              status: "playing",
+              ticketType: "minimal",
+              board: { x: 0, y: 0, w: 1, h: 1, columns: 4 },
+              notes: [],
+            },
+          ],
+        })
+      );
+
+      render(<HomeScreen />);
+      fireEvent(screen.getByTestId("playing-card-add-drag-cap"), "longPress", {
+        nativeEvent: { locationX: 8, locationY: 8 },
+      });
+
+      await waitFor(() =>
+        expect(capturedPanResponderConfig.onMoveShouldSetPanResponderCapture()).toBe(true)
+      );
+
+      await act(async () => {
+        capturedPanResponderConfig.onPanResponderMove({}, { moveX: 90, moveY: 9999 });
+        capturedPanResponderConfig.onPanResponderRelease();
+      });
+
+      await waitFor(() => expect(mockMoveGameToBoardTarget).toHaveBeenCalled());
+      const [, target] =
+        mockMoveGameToBoardTarget.mock.calls[mockMoveGameToBoardTarget.mock.calls.length - 1];
+      expect(target.y).toBeLessThanOrEqual(11);
+      expect(target.y + target.h).toBeLessThanOrEqual(12);
     } finally {
       windowSpy.mockRestore();
     }

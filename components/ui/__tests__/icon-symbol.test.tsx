@@ -1,7 +1,7 @@
 import React from "react";
 import { render, screen } from "@testing-library/react-native";
 
-import { IconSymbol as FallbackIconSymbol } from "../icon-symbol";
+import { IconSymbol as FallbackIconSymbol } from "../icon-symbol.tsx";
 import { IconSymbol as IOSIconSymbol } from "../icon-symbol.ios";
 
 jest.mock("@expo/vector-icons/MaterialIcons", () => {

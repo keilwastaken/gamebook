@@ -18,7 +18,7 @@ Current product contract is **strict no-overlap placement**:
 2. Dragging onto any occupied cell is rejected.
 3. No auto-push, no insert+reflow, no implicit card swapping.
 4. Conflict feedback is per-cell (only blocked grid cells are marked).
-5. Drag targeting/auto-scroll is capped to the first 12 board rows.
+5. Home screen drag targeting/auto-scroll is capped to a fixed 4x6 board (6 rows).
 
 ## Why This Contract Exists
 
@@ -120,6 +120,7 @@ Responsibilities:
 7. Update animated target indicator + per-cell conflict markers.
 8. Trigger a haptic selection tick when the resolved slot key changes.
 9. Apply edge auto-scroll when pointer nears top/bottom viewport edges.
+10. Auto-scroll can use bottom content padding so row 6 cards can be re-grabbed above the tab bar.
 
 ### Drop Commit
 

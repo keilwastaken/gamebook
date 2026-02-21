@@ -13,6 +13,7 @@ export function TabBarBackground({ width }: TabBarBackgroundProps) {
 
   return (
     <View
+      pointerEvents="none"
       style={{
         position: "absolute",
         top: 0,

@@ -388,7 +388,7 @@ describe("[dragdrop-regression] HomeScreen", () => {
     }
   });
 
-  it("caps drag drop target within 12 grid rows", async () => {
+  it("caps drag drop target within the 6-row home grid", async () => {
     const windowSpy = jest
       .spyOn(ReactNative, "useWindowDimensions")
       .mockReturnValue({ width: 232, height: 900, scale: 2, fontScale: 1 });
@@ -427,8 +427,77 @@ describe("[dragdrop-regression] HomeScreen", () => {
       await waitFor(() => expect(mockMoveGameToBoardTarget).toHaveBeenCalled());
       const [, target] =
         mockMoveGameToBoardTarget.mock.calls[mockMoveGameToBoardTarget.mock.calls.length - 1];
-      expect(target.y).toBeLessThanOrEqual(11);
-      expect(target.y + target.h).toBeLessThanOrEqual(12);
+      expect(target.y).toBeLessThanOrEqual(5);
+      expect(target.y + target.h).toBeLessThanOrEqual(6);
+    } finally {
+      windowSpy.mockRestore();
+    }
+  });
+
+  it("allows re-grabbing a card after dropping it on the bottom row", async () => {
+    const windowSpy = jest
+      .spyOn(ReactNative, "useWindowDimensions")
+      .mockReturnValue({ width: 232, height: 900, scale: 2, fontScale: 1 });
+
+    try {
+      const game = {
+        id: "drag-bottom-regrab",
+        title: "Bottom Regrab",
+        status: "playing" as const,
+        ticketType: "minimal" as const,
+        board: { x: 0, y: 0, w: 1, h: 1, columns: 4 },
+        notes: [],
+      };
+
+      mockUseGamesContext.mockReturnValue(
+        makeContext({
+          loading: false,
+          playingGames: [game],
+        })
+      );
+
+      const { rerender } = render(<HomeScreen />);
+      fireEvent(screen.getByTestId("playing-card-add-drag-bottom-regrab"), "longPress", {
+        nativeEvent: { locationX: 8, locationY: 8 },
+      });
+
+      await waitFor(() =>
+        expect(capturedPanResponderConfig.onMoveShouldSetPanResponderCapture()).toBe(true)
+      );
+
+      await act(async () => {
+        capturedPanResponderConfig.onPanResponderMove({}, { moveX: 90, moveY: 9999 });
+        capturedPanResponderConfig.onPanResponderRelease();
+      });
+
+      await waitFor(() => expect(mockMoveGameToBoardTarget).toHaveBeenCalled());
+      const [, target] =
+        mockMoveGameToBoardTarget.mock.calls[mockMoveGameToBoardTarget.mock.calls.length - 1];
+      expect(target.y).toBeLessThanOrEqual(5);
+      expect(target.y + target.h).toBeLessThanOrEqual(6);
+
+      mockUseGamesContext.mockReturnValue(
+        makeContext({
+          loading: false,
+          playingGames: [
+            {
+              ...game,
+              board: { x: target.x, y: target.y, w: target.w, h: target.h, columns: 4 },
+            },
+          ],
+        })
+      );
+      rerender(<HomeScreen />);
+
+      expect(capturedPanResponderConfig.onMoveShouldSetPanResponderCapture()).toBe(false);
+
+      fireEvent(screen.getByTestId("playing-card-add-drag-bottom-regrab"), "longPress", {
+        nativeEvent: { locationX: 8, locationY: 8 },
+      });
+
+      await waitFor(() =>
+        expect(capturedPanResponderConfig.onMoveShouldSetPanResponderCapture()).toBe(true)
+      );
     } finally {
       windowSpy.mockRestore();
     }

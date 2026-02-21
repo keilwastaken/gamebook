@@ -6,13 +6,13 @@
 
 ## Goal
 
-Make drag auto-scroll feel natural and fully consistent with the 12-row board cap, with no visual/placement mismatch at boundaries.
+Make drag auto-scroll feel natural and fully consistent with the fixed 4x6 home board cap (6 rows), with no visual/placement mismatch at boundaries.
 
 ## Steps
 
 - [ ] Reproduce and document edge scenarios (drag near top/bottom, long hold at cap, release after scroll).
-- [ ] Align visual, target, and commit boundaries so the drag overlay never suggests a drop outside the 12-row cap.
-- [ ] Tune auto-scroll acceleration/deceleration curve near edges and near the 12-row cap for smoother motion.
+- [ ] Align visual, target, and commit boundaries so the drag overlay never suggests a drop outside the 6-row home-grid cap.
+- [ ] Tune auto-scroll acceleration/deceleration curve near edges and near the 6-row home-grid cap for smoother motion.
 - [ ] Validate that auto-scroll cannot expose or depend on rows beyond the capped drop domain.
 - [ ] Add or tighten regression tests for: capped Y target, capped overlay motion, and no snap-back on release.
 - [ ] Update drag/drop docs with final scroll behavior constants and user-facing interaction contract.
@@ -22,7 +22,7 @@ Make drag auto-scroll feel natural and fully consistent with the 12-row board ca
 | Date | Decision | Rationale |
 |------|----------|-----------|
 | 2026-02-21 | Keep strict no-overlap drop policy unchanged while polishing scroll feel | Scroll polish should not alter commit safety contract |
-| 2026-02-21 | Keep drag/drop cap at 12 rows | Preserve explicit board depth constraint and avoid unbounded drag domain |
+| 2026-02-21 | Keep drag/drop cap at 6 rows (fixed 4x6 home grid) | Simplify drag domain to a static board and avoid dynamic row growth |
 
 ## Notes
 

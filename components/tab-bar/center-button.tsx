@@ -49,6 +49,7 @@ export function CenterButton({ size, onPress }: CenterButtonProps) {
 
   return (
     <View
+      pointerEvents="box-none"
       style={{
         flex: 1,
         alignItems: "center",

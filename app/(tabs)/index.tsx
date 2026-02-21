@@ -30,7 +30,6 @@ import {
   type GridCell,
 } from "@/lib/board";
 import {
-  DEFAULT_BOARD_COLUMNS,
   applyBoardLayout,
   constrainSpanForCard,
   getAxisIntentSpan,
@@ -51,7 +50,8 @@ const AUTO_SCROLL_EDGE_THRESHOLD = 112;
 const AUTO_SCROLL_MIN_SPEED = 28;
 const AUTO_SCROLL_MAX_SPEED = 340;
 const AUTO_SCROLL_CAP_SLOWDOWN_PX = 96;
-const MAX_DRAG_ROW_COUNT = 12;
+const HOME_BOARD_COLUMN_COUNT = 4;
+const HOME_BOARD_ROW_COUNT = 6;
 const HAPTIC_TICK_MIN_INTERVAL_MS = 45;
 
 export default function HomeScreen() {
@@ -88,7 +88,6 @@ export default function HomeScreen() {
   const targetSlotRef = useRef<{ x: number; y: number; w: number; h: number } | null>(null);
   const boardViewportRef = useRef<BoardViewportHandle>(null);
   const boardRef = useRef<View>(null);
-  const boardTopInScrollRef = useRef(0);
   const boardOriginRef = useRef({ x: 0, y: 0 });
   const dragOffsetRef = useRef({ x: 0, y: 0 });
   const dropTargetKeyRef = useRef("");
@@ -108,7 +107,7 @@ export default function HomeScreen() {
   const dropTargetWidth = useRef(new Animated.Value(0)).current;
   const dropTargetHeight = useRef(new Animated.Value(0)).current;
   const { width, height } = useWindowDimensions();
-  const boardColumns = DEFAULT_BOARD_COLUMNS;
+  const boardColumns = HOME_BOARD_COLUMN_COUNT;
   const { cellWidth, rowHeight } = useMemo(
     () => getBoardMetrics(width, boardColumns),
     [width, boardColumns]
@@ -120,21 +119,10 @@ export default function HomeScreen() {
         : playingGames,
     [playingGames, boardColumns]
   );
-  const boardRows = useMemo(
-    () =>
-      boardGames.reduce((max, game) => {
-        const y = game.board?.y ?? 0;
-        const h = game.board?.h ?? 1;
-        return Math.max(max, y + h);
-      }, 0),
-    [boardGames]
-  );
-  const visibleRows = Math.max(
-    boardRows || 1,
-    dropTarget ? dropTarget.y + dropTarget.h + 1 : 0
-  );
   const boardHeight =
-    visibleRows > 0 ? visibleRows * rowHeight + (visibleRows - 1) * BOARD_GAP : 0;
+    HOME_BOARD_ROW_COUNT > 0
+      ? HOME_BOARD_ROW_COUNT * rowHeight + (HOME_BOARD_ROW_COUNT - 1) * BOARD_GAP
+      : 0;
   const dragSlotWidth =
     dragVisualSpan.w * cellWidth + (dragVisualSpan.w - 1) * BOARD_GAP;
   const dragSlotHeight =
@@ -304,16 +292,10 @@ export default function HomeScreen() {
       const span = chooseNearestAllowedSpan(allowedPresets, intentSpan, baseSpan);
       const dragWidth = span.w * cellWidth + (span.w - 1) * BOARD_GAP;
       const dragHeight = span.h * rowHeight + (span.h - 1) * BOARD_GAP;
-      const maxRowsToScan = Math.max(
-        boardRows + 3,
-        Math.ceil((top + dragHeight) / strideY) + 3,
-        6
-      );
-      const maxCandidateY = Math.max(0, MAX_DRAG_ROW_COUNT - span.h);
-      const cappedRowsToScan = Math.min(maxRowsToScan, maxCandidateY);
+      const maxCandidateY = Math.max(0, HOME_BOARD_ROW_COUNT - span.h);
 
       let bestSlot: { x: number; y: number; distSq: number } | null = null;
-      for (let candidateY = 0; candidateY <= cappedRowsToScan; candidateY += 1) {
+      for (let candidateY = 0; candidateY <= maxCandidateY; candidateY += 1) {
         for (let candidateX = 0; candidateX <= boardColumns - span.w; candidateX += 1) {
           const slotCenterX = candidateX * strideX + dragWidth / 2;
           const slotCenterY = candidateY * strideY + dragHeight / 2;
@@ -400,7 +382,6 @@ export default function HomeScreen() {
       boardColumns,
       cellWidth,
       rowHeight,
-      boardRows,
       boardGames,
       animateDropTargetTo,
     ]
@@ -416,7 +397,7 @@ export default function HomeScreen() {
       const maxLeft =
         Math.max(0, boardColumns - baseSpan.w) * (cellWidth + BOARD_GAP);
       const maxTop =
-        Math.max(0, MAX_DRAG_ROW_COUNT - baseSpan.h) * (rowHeight + BOARD_GAP);
+        Math.max(0, HOME_BOARD_ROW_COUNT - baseSpan.h) * (rowHeight + BOARD_GAP);
       const left = Math.max(0, Math.min(maxLeft, rawLeft));
       const top = Math.max(0, Math.min(maxTop, rawTop));
       dragXY.setValue({ x: left, y: top });
@@ -467,13 +448,7 @@ export default function HomeScreen() {
       const viewportHeight = scrollViewportHeightRef.current || height;
       const contentHeight = scrollContentHeightRef.current;
       const contentMaxOffset = Math.max(0, contentHeight - viewportHeight);
-      const maxGridHeight =
-        MAX_DRAG_ROW_COUNT * rowHeight + (MAX_DRAG_ROW_COUNT - 1) * BOARD_GAP;
-      const gridMaxOffset = Math.max(
-        0,
-        boardTopInScrollRef.current + maxGridHeight - viewportHeight
-      );
-      const maxOffset = Math.min(contentMaxOffset, gridMaxOffset);
+      const maxOffset = contentMaxOffset;
       const velocity = getAutoScrollVelocity(pointer.y, viewportHeight);
       if (maxOffset <= 0 || velocity === 0) {
         autoScrollLastTsRef.current = null;
@@ -502,7 +477,7 @@ export default function HomeScreen() {
       }
       autoScrollFrameRef.current = requestAnimationFrame(tickAutoScroll);
     },
-    [draggingId, getAutoScrollVelocity, height, rowHeight, positionDragAtPointer]
+    [draggingId, getAutoScrollVelocity, height, positionDragAtPointer]
   );
 
   const queueAutoScrollForPointer = useCallback(
@@ -618,8 +593,7 @@ export default function HomeScreen() {
           <View
             ref={boardRef}
             style={[styles.board, { height: boardHeight }]}
-            onLayout={(event) => {
-              boardTopInScrollRef.current = event.nativeEvent.layout.y;
+            onLayout={() => {
               boardRef.current?.measureInWindow((x, y) => {
                 boardOriginRef.current = { x, y };
               });
@@ -671,7 +645,7 @@ export default function HomeScreen() {
                         x: board.x,
                         y: Math.min(
                           board.y,
-                          Math.max(0, MAX_DRAG_ROW_COUNT - lockedSpan.h)
+                          Math.max(0, HOME_BOARD_ROW_COUNT - lockedSpan.h)
                         ),
                         w: lockedSpan.w,
                         h: lockedSpan.h,
@@ -732,7 +706,7 @@ export default function HomeScreen() {
             })}
             {draggingGame ? (
               <View pointerEvents="none" style={styles.gridOverlay}>
-                {Array.from({ length: visibleRows * boardColumns }).map((_, index) => {
+                {Array.from({ length: HOME_BOARD_ROW_COUNT * boardColumns }).map((_, index) => {
                   const row = Math.floor(index / boardColumns);
                   const col = index % boardColumns;
                   return (

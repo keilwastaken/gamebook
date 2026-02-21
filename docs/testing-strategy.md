@@ -1,5 +1,8 @@
 # Testing Strategy
 
+This repository uses boundary-first testing. For drag/drop specifically, tests
+are treated as a production contract, not optional confidence checks.
+
 ## Layers
 
 | Layer | Tool | Scope | Speed |
@@ -11,24 +14,20 @@
 
 - Located in `__tests__/` directories colocated with their source.
 - Test file naming: `<source-name>.test.tsx` or `<source-name>.test.ts`.
-- Focus on **behavioral boundaries**: does the component render, respond to
-  press, apply the correct style tokens?
-- Mock external modules (Expo, Reanimated) in `jest.setup.ts`.
+- Focus on behavioral boundaries: rendering, interaction, state transitions,
+  and side-effect isolation.
+- Mock external modules (Expo, Reanimated, AsyncStorage) in deterministic ways.
 
 ## Boundary-First Contract (New Features)
 
-For new logic-heavy features, tests are treated as a contract that defines
-what agents are allowed to change.
+For logic-heavy features, tests define what can and cannot change.
 
-- Define both allowed behavior and forbidden behavior.
-- Always include happy-path tests and explicit negative tests for invalid
-  shapes, invalid types, and unsupported values.
-- Mock all external boundaries (storage, APIs, network, file system, time)
-  and assert only expected side effects occur.
-- Keep tests deterministic: no random assertions, no real network, and no
-  flaky timer dependence.
-- For core pure-logic modules, aim for 100% statements/branches/functions/lines.
-  If 100% is not practical, document the exact uncovered branch and reason in PR.
+- Define allowed behavior and forbidden behavior.
+- Include happy-path and explicit negative tests.
+- Mock all external boundaries (storage, network, file system, time) and assert
+  only intended side effects.
+- Keep tests deterministic: no randomness, no real network, minimal timer risk.
+- For core pure-logic modules, target full branch coverage where feasible.
 
 ### Boundary Checklist
 
@@ -39,12 +38,82 @@ what agents are allowed to change.
 5. Determinism is verified across repeated runs.
 6. Coverage for touched core logic is reported in the PR.
 
+## Drag/Drop Contract Tests (Production-Critical)
+
+These suites protect the board interaction model currently in production.
+
+### Tier 1: Release Guardrail Suites
+
+- `/Users/keilaloia/gamebook/app/(tabs)/__tests__/index.test.tsx`
+  - validates drag gesture wiring (`PanResponder`)
+  - validates dynamic hover span behavior
+  - validates conflict-cell highlighting behavior
+  - validates drop payload dispatched to store layer
+
+- `/Users/keilaloia/gamebook/lib/__tests__/game-store.test.ts`
+  - validates accepted move persistence
+  - validates overlap rejection as no-op
+  - validates static-neighbor contract on empty drops
+  - validates migration/normalization behavior around board data
+
+- `/Users/keilaloia/gamebook/lib/__tests__/board-layout.test.ts`
+  - validates span presets and constraints
+  - validates deterministic baseline and pinned layout helpers
+  - validates hover-intent primitives (`getAxisIntentSpan`, `getHoverZone`)
+
+These are included in:
+
+```bash
+pnpm test:dragdrop:regression
+```
+
+### Tier 2: Engine Precision Suite
+
+- `/Users/keilaloia/gamebook/lib/board/__tests__/engine.test.ts`
+  - validates exact conflict-cell detection
+  - validates strict no-overlap commit policy in isolation
+
+This suite is highly recommended when touching board engine logic even though it
+is not currently part of `test:dragdrop:regression`.
+
+## Mutation Testing (Drag/Drop Guardrail)
+
+Mutation checks ensure tests fail when core logic is intentionally perturbed.
+
+Core mutation scope (`/Users/keilaloia/gamebook/stryker.dragdrop.conf.cjs`):
+
+- `/Users/keilaloia/gamebook/lib/board-layout.ts`
+- `/Users/keilaloia/gamebook/lib/game-store.ts`
+
+Deep mutation scope (`/Users/keilaloia/gamebook/stryker.dragdrop.full.conf.cjs`):
+
+- includes `/Users/keilaloia/gamebook/app/(tabs)/index.tsx`
+
+Run locally:
+
+```bash
+pnpm test:dragdrop:regression
+pnpm test:mutation:dragdrop
+pnpm test:mutation:dragdrop:ci
+pnpm test:mutation:dragdrop:full:dry
+pnpm test:mutation:dragdrop:full
+```
+
+Thresholds:
+
+- `high`: 85
+- `low`: 70
+- `break`: 65
+
+If mutation score drops below `break`, treat as a release blocker for
+behavioral drag/drop changes.
+
 ## E2E Tests (Detox)
 
-- Located in `e2e/` at the project root.
+- Located in `/Users/keilaloia/gamebook/e2e`.
 - File naming: `<flow-name>.e2e.ts`.
-- Scope: smoke navigation across tabs, center-button add flow.
-- Use stable `testID` props — never query by text content that may change.
+- Scope: smoke navigation and critical top-level user flows.
+- Use stable `testID` props; avoid fragile text-only selectors.
 
 ## Running Locally
 
@@ -52,77 +121,36 @@ what agents are allowed to change.
 pnpm test              # unit + component (Jest)
 pnpm test:watch        # Jest in watch mode
 pnpm test:ci           # Jest with CI reporter + coverage
-pnpm test:ci -- lib/__tests__/board-layout.test.ts --watchman=false --collectCoverageFrom=lib/board-layout.ts
-                      # module-focused coverage check for branch-complete logic
 pnpm typecheck         # tsc --noEmit
 pnpm e2e:build:ios     # Build Detox iOS test app
 pnpm e2e:test:ios      # Run Detox E2E on iOS simulator
 ```
 
-## Mutation Testing (Drag/Drop Guardrail)
-
-Use mutation testing to verify drag/drop tests fail when core logic is altered.
-This catches "tests pass but behavior regresses" cases.
-
-Configured scope:
-
-- `lib/board-layout.ts`
-- `lib/game-store.ts`
-
-Optional deep-audit scope (slower):
-
-- `app/(tabs)/index.tsx`
-
-Run locally:
+Drag/drop-focused pre-merge run:
 
 ```bash
-pnpm test:dragdrop:regression          # Fast drag/drop regression suite (< 1 min)
-pnpm test:mutation:dragdrop            # Fast mutation dry-run check (core scope)
-pnpm test:mutation:dragdrop:ci         # Core mutation run + HTML report
-pnpm test:mutation:dragdrop:full:dry   # Dry-run check (core + UI drag screen)
-pnpm test:mutation:dragdrop:full       # Deep run (slower, use on release branch/nightly)
+pnpm test --watchman=false --runTestsByPath \
+  'app/(tabs)/__tests__/index.test.tsx' \
+  'lib/__tests__/board-layout.test.ts' \
+  'lib/__tests__/game-store.test.ts' \
+  'lib/board/__tests__/engine.test.ts'
 ```
-
-Speed guidance:
-
-- Local development path should remain sub-1-minute:
-  - `pnpm test:dragdrop:regression`
-  - `pnpm test:mutation:dragdrop` (dry-run only)
-- CI mutation gate (`pnpm test:mutation:dragdrop:ci`) is allowed to run longer
-  and is budgeted for up to 10 minutes.
-
-Default mutation thresholds in `stryker.dragdrop.conf.cjs`:
-
-- `high`: 85
-- `low`: 70
-- `break`: 65
-
-If the mutation score drops below `break`, treat it as a release blocker for
-drag/drop changes until missing tests are added.
-
-Suite ownership note:
-
-- Test suites labeled with `[dragdrop-regression]` are release guardrails.
-- Do not delete or weaken their assertions without a matching behavior change,
-  updated mutation evidence, and explicit review sign-off.
 
 ## Visual UI Verification
 
-For layout-sensitive changes (shadows, rotations, spacing), use the
-simulator screenshot feedback loop. Screenshots go to `.screenshots/`:
+For layout-sensitive changes (shadows, rotations, spacing), use the simulator
+screenshot workflow. Screenshots go to `.screenshots/`:
 
 ```bash
-./capture-ui.sh pre_edit     # -> .screenshots/pre_edit.png
+./capture-ui.sh pre_edit
 # ...make changes, wait for Fast Refresh...
-./capture-ui.sh post_edit    # -> .screenshots/post_edit.png
+./capture-ui.sh post_edit
 ```
 
-Compare images to verify the visual result. The full workflow is defined
-in `CLAUDE.md` (the project source of truth).
+## Adding or Updating Tests
 
-## Adding a Test
-
-1. Create `__tests__/<name>.test.tsx` next to the source file.
-2. Import `render`, `fireEvent`, `screen` from `@testing-library/react-native`.
-3. Keep tests deterministic — no timers, no network, no platform variance.
-4. Run `pnpm test` before opening a PR.
+1. Add tests next to source in `__tests__/`.
+2. Name files `<name>.test.ts` or `<name>.test.tsx`.
+3. Keep assertions deterministic.
+4. If drag/drop behavior changes, update docs and tests in the same PR.
+5. Run affected suites and mutation checks before merge.

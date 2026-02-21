@@ -1,195 +1,280 @@
 # Board Drag and Drop Architecture
 
-This document is the implementation-level reference for the board system:
+This document is the implementation contract for Gamebook board drag/drop.
+It is intentionally detailed because this system is production-critical and
+has already gone through one behavior regression during refactor.
 
-- grid placement
-- drag and drop target selection
-- card span presets/resizing
-- persistence and migration
+Use this with:
 
-Use this with `docs/architecture.md` and the active execution plan in
-`docs/exec-plans/active/board-rearrange-and-dynamic-spans.md`.
+- `/Users/keilaloia/gamebook/docs/architecture.md`
+- `/Users/keilaloia/gamebook/docs/testing-strategy.md`
+- `/Users/keilaloia/gamebook/docs/exec-plans/completed/board-rearrange-and-dynamic-spans.md`
 
-## Goals
+## Status Snapshot (2026-02-21)
 
-1. Every created card is immutable and gets a unique ID.
-2. Reordering never mutates card identity, only placement.
-3. Placement is deterministic from game order + span constraints.
-4. Drag feedback is stable (no flicker/jump while hovering near boundaries).
-5. Card span updates happen through drag intent and drop target selection.
+Current product contract is **strict no-overlap placement**:
 
-## Data Model
+1. Dragging into an empty slot moves only the dragged card.
+2. Dragging onto any occupied cell is rejected.
+3. No auto-push, no insert+reflow, no implicit card swapping.
+4. Conflict feedback is per-cell (only blocked grid cells are marked).
 
-Source of truth:
+## Why This Contract Exists
 
-- `lib/types.ts`
-- `lib/game-store.ts`
-- `lib/board-layout.ts`
+The earlier insert/reflow behavior was technically consistent but felt unstable
+and confusing to users during drag. Users experienced card movement as
+"automatic pushing" that was hard to predict.
 
-Key structures:
+The team intentionally optimized for:
 
-- `Game.id`: stable unique ID for each card.
-- `Game.board`: `{ x, y, w, h, columns }` placement in grid units.
-- `Game.ticketType`: controls default card span + allowed presets.
+- stable mental model
+- low surprise during drag
+- explicit user control over rearrangement
+- safe production behavior over clever placement
 
-Notes and games currently use local client IDs:
+## Non-Negotiable Behavior Contract
 
-- `tmp_game_<ts>_<seq>`
-- `tmp_note_<ts>_<seq>`
+### 1) Static Board On Empty Drop
 
-This keeps creation behavior close to future backend semantics: every new object
-is net-new and never overwrites an existing object by ID.
+If target cells are empty, only the dragged card updates position/span.
+All surrounding cards keep their exact coordinates.
 
-## Grid Model
+### 2) Occupied Drop Is Denied
 
-- Board is currently fixed at `4` columns (`DEFAULT_BOARD_COLUMNS`).
-- Coordinates are grid-space, not pixels.
-- `w` and `h` are occupancy spans (how many cells a card consumes).
-- Screen rendering computes pixel slots from:
-  - `cellWidth = (boardWidth - gaps) / columns`
-  - `rowHeight = cellWidth * 1.28`
+If any target cell overlaps another card, commit is rejected and board state
+remains unchanged.
 
-## Span Policy
+### 3) No Swap Path
 
-Defined in `getCardSpan()` and `getCardSpanPresets()` in `lib/board-layout.ts`.
-The system now uses a grid size type model (`GridSizeId`) that represents all
-sizes from `1x1` through `4x4`, then applies per-ticket allowlists.
+Swap-on-overlap was explored and intentionally removed.
+There is no accepted "unsafe swap" fallback.
 
-Current defaults and presets:
+### 4) Dynamic Span Intent Is Allowed During Hover
 
-| Type | Default | Allowed presets |
-|------|---------|-----------------|
-| polaroid | 1x1 | 1x1, 2x1, 1x2, 2x2 |
-| postcard | 2x1 | 2x1, 2x2 |
-| ticket | 2x1 | 2x1, 2x2 |
-| minimal | 1x1 | 1x1, 2x1, 1x2, 2x2 |
-| widget | 1x1 | 1x1, 2x1, 1x2, 2x2 |
+Hover can still morph `w/h` based on boundary intent and allowed presets.
+This only affects the proposed target shape; commit still requires an empty
+footprint.
 
-Rules:
+### 5) Conflict Is Cell-Scoped, Not Whole-Target Scoped
 
-1. `constrainSpanForCard()` only allows preset values per card type.
-2. Legacy spans are normalized on load.
-3. During drag, hover highlight span is dynamic and inferred from drag intent:
-   - drag starts at current span
-   - hovering near grid boundaries can morph the target span
-   - drop commits the inferred target `w/h` for the card
-4. Note overlay does not control card span; drag/drop is the single sizing path.
+When target overlaps, only the specific blocked cells are highlighted.
+The entire target region is not globally marked invalid.
 
-## Placement Algorithms
+## Ownership Boundaries
 
-Implemented in `lib/board-layout.ts`.
+### UI Boundary
 
-### `applyBoardLayout(games, columns)`
+- `/Users/keilaloia/gamebook/app/(tabs)/index.tsx`
+- `/Users/keilaloia/gamebook/components/board/board-viewport.tsx`
 
-Deterministic packer:
+Responsibilities:
 
-1. Iterate games in array order.
-2. For each game, compute effective span.
-3. Scan rows top-down and columns left-right.
-4. Place at first free rectangle that fits.
-5. Mark occupied cells.
+- gesture capture (`PanResponder`)
+- nearest-slot target selection + hysteresis
+- drag overlay + drop target indicator rendering
+- conflict-cell visualization
+- dispatching drop intent
 
-This means order in the array is the visual priority order.
+### Domain/Engine Boundary
 
-### `applyBoardLayoutWithPinned(games, pinnedGameId, pinnedTarget, columns)`
+- `/Users/keilaloia/gamebook/lib/board/engine.ts`
+- `/Users/keilaloia/gamebook/lib/board/metrics.ts`
+- `/Users/keilaloia/gamebook/lib/board-layout.ts`
 
-Pinned reflow:
+Responsibilities:
 
-1. Reserve the pinned card at target `x/y/w/h` (after constraints).
-2. Re-layout all other cards around it using same first-fit scan.
-3. Return full board placements.
+- span constraints and allowed presets
+- placement normalization and clamping
+- overlap/conflict detection
+- strict commit policy (accept empty, reject overlap)
+- board geometry metrics
 
-This is used for:
+### Persistence Boundary
 
-- drag drop commit
-- span cycling
+- `/Users/keilaloia/gamebook/lib/game-store.ts`
 
-## Drag and Drop Flow
+Responsibilities:
 
-Primary code path: `app/(tabs)/index.tsx`.
+- load/migrate stored games
+- expose `moveGameToBoardTarget`
+- call strict commit engine and persist results
 
-Interaction model:
+## Runtime Flow
 
-1. Tap card: open `JournalOverlay` (note editor).
-2. Long press card: start drag.
-3. Move finger: update drag overlay and drop target.
-4. Release: commit by pinning dragged card into target + full reflow.
+### Drag Start
 
-### Target Selection (current behavior)
+1. Long-press card in `/Users/keilaloia/gamebook/app/(tabs)/index.tsx`.
+2. Base span is constrained via `constrainSpanForCard`.
+3. Initial target is current card slot.
+4. Conflict cells are computed immediately for the initial target.
 
-The board uses distance-based snapping, not overlap-based snapping.
+### Drag Move (`updateDropTarget`)
 
-Algorithm in `updateDropTarget()`:
+1. Compute drag center in board pixels.
+2. Compute intent span via `getAxisIntentSpan` (x and y independently).
+3. Clamp intent to allowed card presets with `chooseNearestAllowedSpan`.
+4. Enumerate candidate slots and choose nearest center.
+5. Apply hysteresis to avoid jitter/flicker near boundaries.
+6. Compute conflicts via `getDropTargetConflictCells`.
+7. Update animated target indicator + per-cell conflict markers.
 
-1. Compute dragged card center in pixel space.
-2. Infer hover intent span from proximity to grid boundaries.
-3. Enumerate candidate slot anchors for inferred span.
-4. Select nearest slot center (`distSq`).
-5. Apply hysteresis against previous slot to prevent rapid flip-flop.
-6. Animate highlight box with spring values (`Animated.spring`).
+### Drop Commit
 
-Why this is stable:
+1. UI calls `moveGameToBoardTarget(gameId, target, columns)`.
+2. Store calls `commitMoveStrictNoOverlap`.
+3. Engine behavior:
+   - normalize origin/target
+   - if same placement: no-op
+   - if any overlap: no-op
+   - else: update only moved card board placement
+4. Persist updated list.
 
-- nearest-center changes at natural halfway boundaries
-- hysteresis dampens boundary jitter
-- highlight movement is animated instead of teleported
+## Core Engine Functions
 
-## Note Overlay UX
+### `/Users/keilaloia/gamebook/lib/board/engine.ts`
 
-`components/journal-overlay.tsx` is a note-only editor:
+- `getDropTargetConflictCells(games, draggingGameId, target, columns)`
+  - returns exact overlapped cells
+  - used for UI invalid-cell feedback
 
-- where-left-off input
-- optional quick-thought input
-- save/close actions
+- `commitMoveStrictNoOverlap(games, gameId, target, columns)`
+  - single source of truth for drop commit policy
+  - rejects overlap and keeps neighbors static
 
-## Persistence and Migration
+- `chooseNearestAllowedSpan(presets, intent, fallback)`
+  - converts raw hover intent into valid preset span
 
-Storage key: `@gamebook/games` in AsyncStorage.
+### `/Users/keilaloia/gamebook/lib/board-layout.ts`
 
-Load migration in `loadGames()`:
+Still authoritative for:
 
-1. Fill missing defaults (`ticketType`, `mountStyle`, `postcardSide`).
-2. Normalize invalid legacy spans.
-3. Re-layout if board placement is missing/outdated (`columns` mismatch).
-4. Persist migrated result.
+- `getCardSpan`
+- `getCardSpanPresets`
+- `constrainSpanForCard`
+- `applyBoardLayout`
+- `applyBoardLayoutWithPinned` (used by span-cycling flows)
+- `getAxisIntentSpan`
+- `getHoverZone`
 
-This allows iterative UX changes without stale local data breaking layout.
+## Retired Path (Do Not Reintroduce Accidentally)
 
-## Testing Map
+The following functions were removed on 2026-02-21 as part of the strict
+no-overlap contract cleanup:
 
-Core suites:
+- `findBestInsertion`
+- `previewInsertionAtIndex`
 
-- `lib/__tests__/board-layout.test.ts`
-  - span constraints
-  - layout behavior
-  - insertion helpers
-- `lib/__tests__/game-store.test.ts`
-  - immutable create IDs
-  - migration behavior
-  - span update APIs
-- `components/__tests__/journal-overlay.test.tsx`
-  - note fields
-  - save behavior
+Reason:
 
-Recommended when editing this subsystem:
+- They represented insertion/reflow planning that no longer matches runtime
+  behavior.
+- Keeping them created architectural drift and made refactors likely to restore
+  legacy behavior by accident.
+
+If a future feature needs insertion/reflow again, it must be a deliberate
+product decision with:
+
+1. updated contract docs
+2. explicit new engine boundary API
+3. rewritten regression/mutation expectations
+
+## Visual Feedback Model
+
+During drag:
+
+- Neutral grid cells are always rendered as board scaffolding.
+- Active target rectangle animates with spring motion.
+- Occupied overlap cells render as explicit conflict cells.
+
+This keeps feedback local and actionable: users see exactly which cells block a
+commit.
+
+## Persistence + Migration Notes
+
+`/Users/keilaloia/gamebook/lib/game-store.ts` load path still normalizes:
+
+- missing type defaults
+- unsupported legacy ticket types
+- invalid spans
+- missing/outdated board placements
+
+Drop commit uses strict engine policy regardless of stored payload shape.
+
+## Production-Critical Test Map
+
+These tests are the release guardrail for drag/drop behavior.
+
+### Primary guardrail suites
+
+- `/Users/keilaloia/gamebook/app/(tabs)/__tests__/index.test.tsx`
+  - pan responder drag flow
+  - dynamic span morph behavior
+  - overlap cell highlighting contract
+  - drop target payload passed to store
+
+- `/Users/keilaloia/gamebook/lib/__tests__/game-store.test.ts`
+  - `moveGameToBoardTarget` static-board behavior
+  - overlap rejection no-op behavior
+  - mixed-span overlap pressure scenarios
+  - migration and normalization around persisted board fields
+
+- `/Users/keilaloia/gamebook/lib/__tests__/board-layout.test.ts`
+  - span/preset constraints
+  - deterministic base layout and pinned layout behavior
+  - hover intent primitives
+
+### Additional engine-focused suite
+
+- `/Users/keilaloia/gamebook/lib/board/__tests__/engine.test.ts`
+  - conflict-cell precision
+  - strict accept/reject commit behavior in pure logic form
+
+## Command Checklist
+
+Fast local regression (default):
 
 ```bash
-pnpm typecheck
-pnpm exec jest --watchman=false \
-  lib/__tests__/board-layout.test.ts \
-  lib/__tests__/game-store.test.ts \
-  components/__tests__/journal-overlay.test.tsx
+pnpm test:dragdrop:regression
 ```
 
-## Known Constraints and Follow-ups
+Recommended pre-merge drag/drop run:
 
-Current constraints:
+```bash
+pnpm test --watchman=false --runTestsByPath \
+  'app/(tabs)/__tests__/index.test.tsx' \
+  'lib/__tests__/board-layout.test.ts' \
+  'lib/__tests__/game-store.test.ts' \
+  'lib/board/__tests__/engine.test.ts'
+```
 
-- fixed 4-column board
-- no auto-scroll while dragging
-- no haptic tick on cell transitions
-- no drag "jiggle mode"
+Mutation guardrail:
 
-Active follow-ups are tracked in:
+```bash
+pnpm test:mutation:dragdrop
+pnpm test:mutation:dragdrop:ci
+```
 
-- `docs/exec-plans/active/board-rearrange-and-dynamic-spans.md`
+## Change Protocol For Future Work
+
+If you change drag/drop behavior, do all of the following in the same PR:
+
+1. Update this document first (contract section + runtime flow section).
+2. Update `/Users/keilaloia/gamebook/docs/architecture.md` if boundaries move.
+3. Update or add regression tests in all affected layers.
+4. Re-run mutation checks and attach score delta if material.
+5. Call out contract changes explicitly in PR summary.
+
+## Quick Decision Table
+
+Use this when implementing feature requests quickly:
+
+| Requested behavior | Current answer |
+|--------------------|----------------|
+| Drop into empty space | Allowed; moved card only |
+| Drop over occupied cell | Rejected; no board change |
+| Auto-push neighbors | Not supported |
+| Auto-swap two cards | Not supported |
+| Dynamic hover span intent | Supported within allowed presets |
+| Highlight invalid target | Supported at conflicting cell level |
+
+When in doubt, prefer the strict no-overlap contract over convenience logic.

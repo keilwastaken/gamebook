@@ -11,11 +11,12 @@ import {
 import {
   applyBoardLayout,
   applyBoardLayoutWithPinned,
-  constrainSpanForCard,
   DEFAULT_BOARD_COLUMNS,
-  getCardSpan,
   getCardSpanPresets,
+  constrainSpanForCard,
+  getCardSpan,
 } from "./board-layout";
+import { commitMoveStrictNoOverlap } from "./board/engine";
 import { decodeStoredGames } from "./game-storage-codec";
 
 const STORAGE_KEY = "@gamebook/games";
@@ -139,48 +140,6 @@ async function loadGames(): Promise<Game[]> {
 
 async function persistGames(games: Game[]): Promise<void> {
   await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(games));
-}
-
-function rectanglesOverlap(
-  a: Pick<BoardPlacement, "x" | "y" | "w" | "h">,
-  b: Pick<BoardPlacement, "x" | "y" | "w" | "h">
-): boolean {
-  return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
-}
-
-function samePlacement(a: BoardPlacement, b: BoardPlacement): boolean {
-  return a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h && a.columns === b.columns;
-}
-
-function normalizePlacementForGame(game: Game, columns: number): BoardPlacement {
-  const rawSpan = game.board ? { w: game.board.w, h: game.board.h } : getCardSpan(game.ticketType);
-  const span = constrainSpanForCard(game.ticketType, rawSpan, columns);
-  const maxX = Math.max(0, columns - span.w);
-
-  return {
-    x: Math.max(0, Math.min(game.board?.x ?? 0, maxX)),
-    y: Math.max(0, game.board?.y ?? 0),
-    w: span.w,
-    h: span.h,
-    columns,
-  };
-}
-
-function normalizePlacementForTarget(
-  game: Game,
-  target: { x: number; y: number; w: number; h: number },
-  columns: number
-): BoardPlacement {
-  const span = constrainSpanForCard(game.ticketType, { w: target.w, h: target.h }, columns);
-  const maxX = Math.max(0, columns - span.w);
-
-  return {
-    x: Math.max(0, Math.min(target.x, maxX)),
-    y: Math.max(0, target.y),
-    w: span.w,
-    h: span.h,
-    columns,
-  };
 }
 
 export function useGames() {
@@ -328,37 +287,7 @@ export function useGames() {
       columns: number = DEFAULT_BOARD_COLUMNS
     ): Promise<void> => {
       setGamesWithPersistence((prev) => {
-        const movingGame = prev.find((game) => game.id === gameId);
-        if (!movingGame) return prev;
-
-        const placements = new Map<string, BoardPlacement>();
-        for (const game of prev) {
-          placements.set(game.id, normalizePlacementForGame(game, columns));
-        }
-
-        const movingFrom = placements.get(gameId);
-        if (!movingFrom) return prev;
-
-        const movingTo = normalizePlacementForTarget(movingGame, target, columns);
-
-        const overlappedGames = prev.filter((game) => {
-          if (game.id === gameId) return false;
-          const placement = placements.get(game.id);
-          if (!placement) return false;
-          return rectanglesOverlap(placement, movingTo);
-        });
-
-        // Empty slot drop: keep the board static and only update the dragged card.
-        if (overlappedGames.length === 0) {
-          if (samePlacement(movingFrom, movingTo)) return prev;
-
-          return prev.map((game) =>
-            game.id === gameId ? { ...game, board: movingTo } : game
-          );
-        }
-
-        // Strict empty-slot placement: reject any overlap with existing cards.
-        return prev;
+        return commitMoveStrictNoOverlap(prev, gameId, target, columns);
       });
     },
     [setGamesWithPersistence]

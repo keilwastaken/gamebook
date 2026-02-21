@@ -4,13 +4,13 @@ import {
   Animated,
   PanResponder,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   useWindowDimensions,
   View,
 } from "react-native";
 
+import { BoardViewport } from "@/components/board";
 import { palette } from "@/constants/palette";
 import {
   MinimalCard,
@@ -22,6 +22,14 @@ import {
 import { JournalOverlay } from "@/components/journal-overlay";
 import { useGamesContext } from "@/lib/games-context";
 import {
+  BOARD_GAP,
+  chooseNearestAllowedSpan,
+  getBoardMetrics,
+  getDropTargetConflictCells,
+  type GridCell,
+} from "@/lib/board";
+import {
+  DEFAULT_BOARD_COLUMNS,
   applyBoardLayout,
   constrainSpanForCard,
   getAxisIntentSpan,
@@ -30,7 +38,6 @@ import {
 } from "@/lib/board-layout";
 import { DEFAULT_TICKET_TYPE, type Game, type TicketType } from "@/lib/types";
 
-const BOARD_GAP = 8;
 const BASE_CARD_SIZE: Record<TicketType, { width: number; height: number }> = {
   polaroid: { width: 140, height: 196 },
   postcard: { width: 228, height: 142 },
@@ -38,102 +45,6 @@ const BASE_CARD_SIZE: Record<TicketType, { width: number; height: number }> = {
   ticket: { width: 220, height: 90 },
   minimal: { width: 220, height: 84 },
 };
-
-type GridRect = { x: number; y: number; w: number; h: number };
-type GridCell = { x: number; y: number };
-
-function chooseNearestAllowedSpan(
-  presets: Array<{ w: number; h: number }>,
-  intent: { w: number; h: number },
-  fallback: { w: number; h: number }
-): { w: number; h: number } {
-  const exact = presets.find((preset) => preset.w === intent.w && preset.h === intent.h);
-  if (exact) return exact;
-
-  const fallbackPreset =
-    presets.find((preset) => preset.w === fallback.w && preset.h === fallback.h) ?? presets[0];
-
-  return presets.reduce((best, preset) => {
-    const bestScore = Math.abs(best.w - intent.w) + Math.abs(best.h - intent.h);
-    const nextScore = Math.abs(preset.w - intent.w) + Math.abs(preset.h - intent.h);
-    if (nextScore < bestScore) return preset;
-    if (nextScore > bestScore) return best;
-
-    const bestAreaDelta = Math.abs(best.w * best.h - intent.w * intent.h);
-    const nextAreaDelta = Math.abs(preset.w * preset.h - intent.w * intent.h);
-    if (nextAreaDelta < bestAreaDelta) return preset;
-    if (nextAreaDelta > bestAreaDelta) return best;
-
-    const bestIsFallback = best.w === fallbackPreset.w && best.h === fallbackPreset.h;
-    const nextIsFallback = preset.w === fallbackPreset.w && preset.h === fallbackPreset.h;
-    if (nextIsFallback && !bestIsFallback) return preset;
-
-    return best;
-  }, fallbackPreset);
-}
-
-function normalizePlacementForGame(game: Game, columns: number): GridRect {
-  const rawSpan = game.board ? { w: game.board.w, h: game.board.h } : getCardSpan(game.ticketType);
-  const span = constrainSpanForCard(game.ticketType, rawSpan, columns);
-  const maxX = Math.max(0, columns - span.w);
-
-  return {
-    x: Math.max(0, Math.min(game.board?.x ?? 0, maxX)),
-    y: Math.max(0, game.board?.y ?? 0),
-    w: span.w,
-    h: span.h,
-  };
-}
-
-function normalizePlacementForTarget(
-  ticketType: TicketType | undefined,
-  target: GridRect,
-  columns: number
-): GridRect {
-  const span = constrainSpanForCard(ticketType, { w: target.w, h: target.h }, columns);
-  const maxX = Math.max(0, columns - span.w);
-
-  return {
-    x: Math.max(0, Math.min(target.x, maxX)),
-    y: Math.max(0, target.y),
-    w: span.w,
-    h: span.h,
-  };
-}
-
-function getNoPushDropTargetConflictCells(
-  games: Game[],
-  draggingGame: Game,
-  target: GridRect,
-  columns: number
-): GridCell[] {
-  const placements = new Map<string, GridRect>();
-  for (const game of games) {
-    placements.set(game.id, normalizePlacementForGame(game, columns));
-  }
-
-  const movingTo = normalizePlacementForTarget(draggingGame.ticketType, target, columns);
-  const occupied = new Set<string>();
-  for (const game of games) {
-    if (game.id === draggingGame.id) continue;
-    const placement = placements.get(game.id);
-    if (!placement) continue;
-    for (let y = placement.y; y < placement.y + placement.h; y += 1) {
-      for (let x = placement.x; x < placement.x + placement.w; x += 1) {
-        occupied.add(`${x},${y}`);
-      }
-    }
-  }
-
-  const conflicts: GridCell[] = [];
-  for (let y = movingTo.y; y < movingTo.y + movingTo.h; y += 1) {
-    for (let x = movingTo.x; x < movingTo.x + movingTo.w; x += 1) {
-      if (occupied.has(`${x},${y}`)) conflicts.push({ x, y });
-    }
-  }
-
-  return conflicts;
-}
 
 export default function HomeScreen() {
   const {
@@ -177,11 +88,11 @@ export default function HomeScreen() {
   const dropTargetWidth = useRef(new Animated.Value(0)).current;
   const dropTargetHeight = useRef(new Animated.Value(0)).current;
   const { width } = useWindowDimensions();
-  const boardColumns = 4;
-  const boardWidth = Math.max(200, width - 32);
-  const cellWidth =
-    (boardWidth - BOARD_GAP * (boardColumns - 1)) / boardColumns;
-  const rowHeight = cellWidth * 1.28;
+  const boardColumns = DEFAULT_BOARD_COLUMNS;
+  const { cellWidth, rowHeight } = useMemo(
+    () => getBoardMetrics(width, boardColumns),
+    [width, boardColumns]
+  );
   const boardGames = useMemo(
     () =>
       playingGames.some((game) => !game.board)
@@ -400,9 +311,9 @@ export default function HomeScreen() {
           w: desiredW,
           h: desiredH,
         };
-        const nextConflictCells = getNoPushDropTargetConflictCells(
+        const nextConflictCells = getDropTargetConflictCells(
           boardGames,
-          draggingGame,
+          draggingGame.id,
           nextTarget,
           boardColumns
         );
@@ -493,12 +404,11 @@ export default function HomeScreen() {
 
   return (
     <>
-      <ScrollView
+      <BoardViewport
         testID="screen-home"
-        contentContainerStyle={styles.scrollContent}
         style={styles.scroll}
-        scrollEnabled={draggingId === null}
-        showsVerticalScrollIndicator={false}
+        dragging={draggingId !== null}
+        screenWidth={width}
       >
         <View style={styles.header}>
           <Text style={styles.title}>Currently Playing</Text>
@@ -575,9 +485,9 @@ export default function HomeScreen() {
                         w: lockedSpan.w,
                         h: lockedSpan.h,
                       };
-                      const initialConflictCells = getNoPushDropTargetConflictCells(
+                      const initialConflictCells = getDropTargetConflictCells(
                         boardGames,
-                        game,
+                        game.id,
                         initialTarget,
                         boardColumns
                       );
@@ -698,7 +608,7 @@ export default function HomeScreen() {
             ) : null}
           </View>
         )}
-      </ScrollView>
+      </BoardViewport>
 
       {activeGame && (
         <JournalOverlay
@@ -713,12 +623,6 @@ export default function HomeScreen() {
 
 const styles = StyleSheet.create({
   scroll: { flex: 1, backgroundColor: "transparent" },
-  scrollContent: {
-    flexGrow: 1,
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 120,
-  },
   header: {
     marginBottom: 20,
   },

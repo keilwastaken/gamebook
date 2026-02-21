@@ -16,5 +16,7 @@ Agents and humans should start here, then follow links to deeper docs.
 ## Conventions
 
 - Keep docs short and verifiable; prefer code-enforced rules over prose.
+- Exception: production-critical interaction systems (like board drag/drop)
+  can use verbose operational docs to prevent behavior drift.
 - Every new architectural boundary or testing pattern gets a doc here.
 - Stale docs are worse than no docs — update or delete promptly.

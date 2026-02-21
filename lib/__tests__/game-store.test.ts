@@ -540,7 +540,7 @@ describe("[dragdrop-regression] useGames", () => {
     expect(tail?.board).toMatchObject({ x: 0, y: 1, w: 1, h: 1, columns: 4 });
   });
 
-  it("moveGameToBoardTarget leaves board unchanged when direct swap is unsafe", async () => {
+  it("moveGameToBoardTarget leaves board unchanged for mixed-span swap pressure", async () => {
     const stored = [
       {
         id: "dragged",

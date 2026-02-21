@@ -3,14 +3,12 @@ import {
   applyBoardLayout,
   applyBoardLayoutWithPinned,
   constrainSpanForCard,
-  findBestInsertion,
   getAllowedGridSizeIds,
   getCardSpan,
   getCardSpanPresets,
   getEffectiveCardSpan,
   getAxisIntentSpan,
   getHoverZone,
-  previewInsertionAtIndex,
 } from "../board-layout";
 import type { Game } from "../types";
 
@@ -40,35 +38,6 @@ describe("[dragdrop-regression] board-layout", () => {
   it("uses 1x1 defaults when ticket type is missing", () => {
     expect(getAllowedGridSizeIds(undefined)).toEqual(["1x1"]);
     expect(getCardSpan(undefined)).toEqual({ w: 1, h: 1 });
-  });
-
-  it.each(["polaroid", "postcard", "widget", "ticket", "minimal"] as const)(
-    "findBestInsertion can move %s card to top-left",
-    (id) => {
-      const laidOut = applyBoardLayout(BASE_GAMES, 4);
-      const result = findBestInsertion(laidOut, id, 0, 0, 4);
-
-      expect(result.insertionIndex).toBe(0);
-      expect(result.target.x).toBe(0);
-      expect(result.target.y).toBe(0);
-    }
-  );
-
-  it("produces a valid target for wide postcard in lower board rows", () => {
-    const laidOut = applyBoardLayout(BASE_GAMES, 4);
-    const result = findBestInsertion(laidOut, "postcard", 3, 4, 4);
-
-    expect(result.target.w).toBe(2);
-    expect(result.target.x).toBeLessThanOrEqual(2);
-    expect(result.target.y).toBeGreaterThanOrEqual(0);
-  });
-
-  it("applies span overrides for push/reflow placement", () => {
-    const laidOut = applyBoardLayout(BASE_GAMES, 4);
-    const result = findBestInsertion(laidOut, "minimal", 0, 0, 4, { w: 2, h: 2 });
-
-    expect(result.insertionIndex).toBe(0);
-    expect(result.target).toMatchObject({ x: 0, y: 0, w: 2, h: 2 });
   });
 
   it("clamps axis intent span by configured cap", () => {
@@ -108,19 +77,6 @@ describe("[dragdrop-regression] board-layout", () => {
     expect(getHoverZone(0.5, 0.04)).toBe("top");
     expect(getHoverZone(0.5, 0.96)).toBe("bottom");
     expect(getHoverZone(0.5, 0.5)).toBe("middle");
-  });
-
-  it("previews insertion at an explicit index for deterministic zone hover", () => {
-    const laidOut = applyBoardLayout(BASE_GAMES, 4);
-    const hoveredIndex = laidOut.findIndex((g) => g.id === "postcard");
-    const result = previewInsertionAtIndex(laidOut, "minimal", hoveredIndex, 4, {
-      w: 2,
-      h: 2,
-    });
-
-    expect(result.insertionIndex).toBe(hoveredIndex);
-    expect(result.target.w).toBe(2);
-    expect(result.target.h).toBe(2);
   });
 
   it("pins a moved card at an explicit slot and reflows others around it", () => {
@@ -205,100 +161,6 @@ describe("[dragdrop-regression] board-layout", () => {
 
     const unstableResult = pinned.find((game) => game.title === "Unstable");
     expect(unstableResult?.board).toEqual({ x: 9, y: 9, w: 1, h: 1, columns: 4 });
-  });
-
-  it("returns deterministic fallback when preview is requested for missing game id", () => {
-    const preview = previewInsertionAtIndex(BASE_GAMES, "missing", 2, 4, { w: 2, h: 2 });
-    expect(preview).toEqual({
-      insertionIndex: 0,
-      target: { x: 0, y: 0, w: 1, h: 1 },
-    });
-  });
-
-  it("clamps preview insertion index and applies span overrides without existing board", () => {
-    const preview = previewInsertionAtIndex(BASE_GAMES, "postcard", 999, 4, { w: 2, h: 2 });
-    expect(preview.insertionIndex).toBe(BASE_GAMES.length - 1);
-    expect(preview.target).toMatchObject({ w: 2, h: 2 });
-  });
-
-  it("falls back to a default preview target when moving id mutates during layout", () => {
-    let readCount = 0;
-    const unstable = {
-      title: "Shifting",
-      status: "playing",
-      notes: [],
-      get id() {
-        readCount += 1;
-        if (readCount <= 2) return "moving";
-        return "moving-mutated";
-      },
-    } as unknown as Game;
-
-    const preview = previewInsertionAtIndex([unstable], "moving", 0, 4);
-    expect(preview).toEqual({
-      insertionIndex: 0,
-      target: { x: 0, y: 0, w: 1, h: 1 },
-    });
-  });
-
-  it("returns deterministic fallback when best insertion is requested for missing id", () => {
-    expect(findBestInsertion(BASE_GAMES, "missing", 1, 1, 4)).toEqual({
-      insertionIndex: 0,
-      target: { x: 0, y: 0, w: 1, h: 1 },
-    });
-  });
-
-  it("uses default desired span when card has no board", () => {
-    const result = findBestInsertion(BASE_GAMES, "polaroid", 0, 0, 4);
-    expect(result.target).toMatchObject({ w: 1, h: 1 });
-  });
-
-  it("applies span override using default board shape when finding best insertion", () => {
-    const result = findBestInsertion(BASE_GAMES, "postcard", 1, 0, 4, { w: 2, h: 2 });
-    expect(result.target).toMatchObject({ w: 2, h: 2 });
-  });
-
-  it("chooses a deterministic insertion index for symmetric placements", () => {
-    const mirrored: Game[] = [
-      { id: "moving", title: "Moving", ticketType: "polaroid", status: "playing", notes: [] },
-      {
-        id: "left",
-        title: "Left",
-        ticketType: "polaroid",
-        status: "playing",
-        notes: [],
-        board: { x: 0, y: 0, w: 1, h: 1, columns: 4 },
-      },
-      {
-        id: "right",
-        title: "Right",
-        ticketType: "polaroid",
-        status: "playing",
-        notes: [],
-        board: { x: 2, y: 0, w: 1, h: 1, columns: 4 },
-      },
-    ];
-    const laidOut = applyBoardLayout(mirrored, 4);
-    const result = findBestInsertion(laidOut, "moving", 1, 0, 4);
-    expect(result.insertionIndex).toBe(1);
-  });
-
-  it("returns the defensive fallback when candidate scan loop cannot run", () => {
-    const pathologicalGames = {
-      find: () => ({
-        id: "moving",
-        title: "Moving",
-        status: "playing",
-        notes: [],
-      }),
-      filter: () => ({ length: -1 }),
-    } as unknown as Game[];
-
-    const result = findBestInsertion(pathologicalGames, "moving", 0, 0, 4);
-    expect(result).toEqual({
-      insertionIndex: 0,
-      target: { x: 0, y: 0, w: 1, h: 1 },
-    });
   });
 
   it("handles default and all threshold branches for axis intent span", () => {

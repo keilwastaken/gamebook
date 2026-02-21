@@ -28,7 +28,8 @@ Open in [Expo Go](https://expo.dev/go), an
 | `pnpm test:ci` | Jest with CI reporter + coverage |
 | `pnpm e2e:build:ios` | Build Detox iOS test app |
 | `pnpm e2e:test:ios` | Run Detox E2E on iOS simulator |
-| `pnpm verify-harness` | Run all checks (lint, type, test, doc-links) |
+| `pnpm verify-harness` | Run all checks (lint, type, test, boundaries, doc-links) |
+| `pnpm verify:boundaries` | Enforce import-layer boundaries |
 | `./capture-ui.sh <name>` | Screenshot simulator to `.screenshots/<name>.png` |
 
 ## Project Structure

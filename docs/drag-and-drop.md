@@ -16,7 +16,7 @@ Use this with `docs/architecture.md` and the active execution plan in
 2. Reordering never mutates card identity, only placement.
 3. Placement is deterministic from game order + span constraints.
 4. Drag feedback is stable (no flicker/jump while hovering near boundaries).
-5. Size updates are accessible from the note flow, not a separate mode.
+5. Card span updates happen through drag intent and drop target selection.
 
 ## Data Model
 
@@ -69,18 +69,11 @@ Rules:
 
 1. `constrainSpanForCard()` only allows preset values per card type.
 2. Legacy spans are normalized on load.
-3. During drag, hover highlight is locked to current card span.
-4. Span change is explicit from note overlay size control.
-5. For card types with base `1x1`, the size UI can expose multiple 2x2 icon
-   permutations that map to the same span (for richer visual choices) while
-   still persisting only `w/h`.
-6. Icon options are ticket-type-specific:
-   - `polaroid`, `minimal`, `widget`: full 2x2 icon permutation set
-   - `postcard`, `ticket`: `top-row`, `bottom-row`, `full-grid`
-7. UI option order is least-filled to most-filled, with `full-grid` always last.
-8. Size option icon position also provides resize anchoring deltas. Example:
-   choosing a right-side icon then switching back to left-side moves the card
-   back left immediately; each click applies movement before reflow.
+3. During drag, hover highlight span is dynamic and inferred from drag intent:
+   - drag starts at current span
+   - hovering near grid boundaries can morph the target span
+   - drop commits the inferred target `w/h` for the card
+4. Note overlay does not control card span; drag/drop is the single sizing path.
 
 ## Placement Algorithms
 
@@ -109,7 +102,6 @@ Pinned reflow:
 This is used for:
 
 - drag drop commit
-- explicit size changes
 - span cycling
 
 ## Drag and Drop Flow
@@ -118,7 +110,7 @@ Primary code path: `app/(tabs)/index.tsx`.
 
 Interaction model:
 
-1. Tap card: open `JournalOverlay` (note + size).
+1. Tap card: open `JournalOverlay` (note editor).
 2. Long press card: start drag.
 3. Move finger: update drag overlay and drop target.
 4. Release: commit by pinning dragged card into target + full reflow.
@@ -130,10 +122,11 @@ The board uses distance-based snapping, not overlap-based snapping.
 Algorithm in `updateDropTarget()`:
 
 1. Compute dragged card center in pixel space.
-2. Enumerate candidate slot anchors for current span.
-3. Select nearest slot center (`distSq`).
-4. Apply hysteresis against previous slot to prevent rapid flip-flop.
-5. Animate highlight box with spring values (`Animated.spring`).
+2. Infer hover intent span from proximity to grid boundaries.
+3. Enumerate candidate slot anchors for inferred span.
+4. Select nearest slot center (`distSq`).
+5. Apply hysteresis against previous slot to prevent rapid flip-flop.
+6. Animate highlight box with spring values (`Animated.spring`).
 
 Why this is stable:
 
@@ -141,21 +134,13 @@ Why this is stable:
 - hysteresis dampens boundary jitter
 - highlight movement is animated instead of teleported
 
-## Note Overlay + Size UX
+## Note Overlay UX
 
-`components/journal-overlay.tsx` now owns size access:
+`components/journal-overlay.tsx` is a note-only editor:
 
-- top-right `Size` button inside note sheet header
-- inline preset buttons (small 2x2 glyphs)
-- selecting a preset calls `onSelectSize`
-
-`app/(tabs)/index.tsx` provides:
-
-- `sizePresets`: per active game type
-- `currentSize`: constrained current board span
-- `onSelectSize`: `setGameSpanPreset(activeGame.id, span, columns)`
-
-This keeps note + size in one flow and avoids extra quick-menu state.
+- where-left-off input
+- optional quick-thought input
+- save/close actions
 
 ## Persistence and Migration
 
@@ -185,7 +170,6 @@ Core suites:
 - `components/__tests__/journal-overlay.test.tsx`
   - note fields
   - save behavior
-  - size button/options/callback
 
 Recommended when editing this subsystem:
 

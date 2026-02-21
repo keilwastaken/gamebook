@@ -19,25 +19,12 @@ import {
   TicketCard,
   WidgetCard,
 } from "@/components/cards";
-import {
-  JournalOverlay,
-  type JournalSizePreset,
-} from "@/components/journal-overlay";
-import {
-  GRID_ACTIVE_BOTTOM_LEFT,
-  GRID_ACTIVE_BOTTOM_RIGHT,
-  GRID_ACTIVE_BOTTOM_ROW,
-  GRID_ACTIVE_FULL_GRID,
-  GRID_ACTIVE_LEFT_COLUMN,
-  GRID_ACTIVE_RIGHT_COLUMN,
-  GRID_ACTIVE_TOP_LEFT,
-  GRID_ACTIVE_TOP_RIGHT,
-  GRID_ACTIVE_TOP_ROW,
-} from "@/components/ui/grid-glyph";
+import { JournalOverlay } from "@/components/journal-overlay";
 import { useGamesContext } from "@/lib/games-context";
 import {
   applyBoardLayout,
   constrainSpanForCard,
+  getAxisIntentSpan,
   getCardSpan,
   getCardSpanPresets,
 } from "@/lib/board-layout";
@@ -52,55 +39,35 @@ const BASE_CARD_SIZE: Record<TicketType, { width: number; height: number }> = {
   minimal: { width: 220, height: 84 },
 };
 
-const DEFAULT_SIZE_PRESET_ORDER: JournalSizePreset[] = [
-  { id: "top-left", w: 1, h: 1, activePositions: GRID_ACTIVE_TOP_LEFT },
-  { id: "top-right", w: 1, h: 1, activePositions: GRID_ACTIVE_TOP_RIGHT },
-  { id: "bottom-left", w: 1, h: 1, activePositions: GRID_ACTIVE_BOTTOM_LEFT },
-  { id: "bottom-right", w: 1, h: 1, activePositions: GRID_ACTIVE_BOTTOM_RIGHT },
-  { id: "top-row", w: 2, h: 1, activePositions: GRID_ACTIVE_TOP_ROW },
-  { id: "bottom-row", w: 2, h: 1, activePositions: GRID_ACTIVE_BOTTOM_ROW },
-  { id: "left-column", w: 1, h: 2, activePositions: GRID_ACTIVE_LEFT_COLUMN },
-  { id: "right-column", w: 1, h: 2, activePositions: GRID_ACTIVE_RIGHT_COLUMN },
-  { id: "full-grid", w: 2, h: 2, activePositions: GRID_ACTIVE_FULL_GRID },
-];
+function chooseNearestAllowedSpan(
+  presets: Array<{ w: number; h: number }>,
+  intent: { w: number; h: number },
+  fallback: { w: number; h: number }
+): { w: number; h: number } {
+  const exact = presets.find((preset) => preset.w === intent.w && preset.h === intent.h);
+  if (exact) return exact;
 
-const SIZE_PRESET_IDS_BY_TICKET_TYPE: Record<TicketType, string[]> = {
-  polaroid: [
-    "top-left",
-    "top-right",
-    "bottom-left",
-    "bottom-right",
-    "top-row",
-    "bottom-row",
-    "left-column",
-    "right-column",
-    "full-grid",
-  ],
-  postcard: ["top-row", "bottom-row", "full-grid"],
-  ticket: ["top-row", "bottom-row", "full-grid"],
-  minimal: [
-    "top-left",
-    "top-right",
-    "bottom-left",
-    "bottom-right",
-    "top-row",
-    "bottom-row",
-    "left-column",
-    "right-column",
-    "full-grid",
-  ],
-  widget: [
-    "top-left",
-    "top-right",
-    "bottom-left",
-    "bottom-right",
-    "top-row",
-    "bottom-row",
-    "left-column",
-    "right-column",
-    "full-grid",
-  ],
-};
+  const fallbackPreset =
+    presets.find((preset) => preset.w === fallback.w && preset.h === fallback.h) ?? presets[0];
+
+  return presets.reduce((best, preset) => {
+    const bestScore = Math.abs(best.w - intent.w) + Math.abs(best.h - intent.h);
+    const nextScore = Math.abs(preset.w - intent.w) + Math.abs(preset.h - intent.h);
+    if (nextScore < bestScore) return preset;
+    if (nextScore > bestScore) return best;
+
+    const bestAreaDelta = Math.abs(best.w * best.h - intent.w * intent.h);
+    const nextAreaDelta = Math.abs(preset.w * preset.h - intent.w * intent.h);
+    if (nextAreaDelta < bestAreaDelta) return preset;
+    if (nextAreaDelta > bestAreaDelta) return best;
+
+    const bestIsFallback = best.w === fallbackPreset.w && best.h === fallbackPreset.h;
+    const nextIsFallback = preset.w === fallbackPreset.w && preset.h === fallbackPreset.h;
+    if (nextIsFallback && !bestIsFallback) return preset;
+
+    return best;
+  }, fallbackPreset);
+}
 
 export default function HomeScreen() {
   const {
@@ -108,7 +75,6 @@ export default function HomeScreen() {
     loading,
     saveNote,
     moveGameToBoardTarget,
-    setGameSpanPreset,
   } = useGamesContext();
   const [activeGame, setActiveGame] = useState<Game | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
@@ -124,9 +90,15 @@ export default function HomeScreen() {
     w: number;
     h: number;
   } | null>(null);
+  const dropTargetRef = useRef<{
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+  } | null>(null);
   const consumeNextPress = useRef(false);
-  const dragSpanRef = useRef<{ w: number; h: number }>({ w: 1, h: 1 });
-  const targetSlotRef = useRef<{ x: number; y: number } | null>(null);
+  const dragBaseSpanRef = useRef<{ w: number; h: number }>({ w: 1, h: 1 });
+  const targetSlotRef = useRef<{ x: number; y: number; w: number; h: number } | null>(null);
   const boardRef = useRef<View>(null);
   const boardOriginRef = useRef({ x: 0, y: 0 });
   const dragOffsetRef = useRef({ x: 0, y: 0 });
@@ -249,53 +221,6 @@ export default function HomeScreen() {
     setActiveGame(null);
   }, []);
 
-  const activeGameSpanPresets = useMemo(() => {
-    if (!activeGame) return [];
-
-    const spanPresets = getCardSpanPresets(activeGame.ticketType, boardColumns);
-    const allowedPresetKeys = new Set(
-      spanPresets.map((preset) => `${preset.w}x${preset.h}`)
-    );
-
-    if (activeGame.ticketType) {
-      const presetMap = new Map(
-        DEFAULT_SIZE_PRESET_ORDER.map((preset) => [preset.id, preset] as const)
-      );
-      return SIZE_PRESET_IDS_BY_TICKET_TYPE[activeGame.ticketType]
-        .map((presetId) => presetMap.get(presetId))
-        .filter((preset): preset is JournalSizePreset => Boolean(preset))
-        .filter((preset) => allowedPresetKeys.has(`${preset.w}x${preset.h}`));
-    }
-
-    return spanPresets.map((preset) => ({
-      id: `${preset.w}x${preset.h}`,
-      ...preset,
-    }));
-  }, [activeGame, boardColumns]);
-  const activeGameCurrentSpan = useMemo(() => {
-    if (!activeGame) return { w: 1, h: 1 };
-    return constrainSpanForCard(
-      activeGame.ticketType,
-      activeGame.board
-        ? { w: activeGame.board.w, h: activeGame.board.h }
-        : getCardSpan(activeGame.ticketType),
-      boardColumns
-    );
-  }, [activeGame, boardColumns]);
-
-  const handleSetActiveGameSpan = useCallback(
-    async (preset: JournalSizePreset, movement: { x: number; y: number }) => {
-      if (!activeGame) return;
-      await setGameSpanPreset(
-        activeGame.id,
-        { w: preset.w, h: preset.h },
-        boardColumns,
-        movement
-      );
-    },
-    [activeGame, setGameSpanPreset, boardColumns]
-  );
-
   useEffect(() => {
     if (!activeGame) return;
     const latest = boardGames.find((game) => game.id === activeGame.id);
@@ -308,22 +233,37 @@ export default function HomeScreen() {
     setDraggingId(null);
     setDragVisualSpan({ w: 1, h: 1 });
     setDragVisualScale(1);
-    dragSpanRef.current = { w: 1, h: 1 };
+    dragBaseSpanRef.current = { w: 1, h: 1 };
     targetSlotRef.current = null;
     setDropTarget(null);
+    dropTargetRef.current = null;
     dropTargetKeyRef.current = "";
   }, []);
 
   const updateDropTarget = useCallback(
     (left: number, top: number) => {
       if (!draggingId) return;
+      const draggingGame = boardGames.find((game) => game.id === draggingId);
+      if (!draggingGame) return;
+
       const strideX = cellWidth + BOARD_GAP;
       const strideY = rowHeight + BOARD_GAP;
-      const span = dragSpanRef.current;
+      const baseSpan = dragBaseSpanRef.current;
+      const baseDragWidth = baseSpan.w * cellWidth + (baseSpan.w - 1) * BOARD_GAP;
+      const baseDragHeight = baseSpan.h * rowHeight + (baseSpan.h - 1) * BOARD_GAP;
+      const dragCenterX = left + baseDragWidth / 2;
+      const dragCenterY = top + baseDragHeight / 2;
+
+      const allowedPresets = getCardSpanPresets(draggingGame.ticketType, boardColumns);
+      const maxAllowedW = Math.max(...allowedPresets.map((preset) => preset.w));
+      const maxAllowedH = Math.max(...allowedPresets.map((preset) => preset.h));
+      const intentSpan = {
+        w: getAxisIntentSpan(dragCenterX, strideX, maxAllowedW),
+        h: getAxisIntentSpan(dragCenterY, strideY, maxAllowedH),
+      };
+      const span = chooseNearestAllowedSpan(allowedPresets, intentSpan, baseSpan);
       const dragWidth = span.w * cellWidth + (span.w - 1) * BOARD_GAP;
       const dragHeight = span.h * rowHeight + (span.h - 1) * BOARD_GAP;
-      const dragCenterX = left + dragWidth / 2;
-      const dragCenterY = top + dragHeight / 2;
       const maxRowsToScan = Math.max(
         boardRows + 3,
         Math.ceil((top + dragHeight) / strideY) + 3,
@@ -351,11 +291,23 @@ export default function HomeScreen() {
 
       let desiredX = bestSlot?.x ?? 0;
       let desiredY = bestSlot?.y ?? 0;
+      let desiredW = span.w;
+      let desiredH = span.h;
 
       const currentSlot = targetSlotRef.current;
-      if (currentSlot && (currentSlot.x !== desiredX || currentSlot.y !== desiredY)) {
-        const currentCenterX = currentSlot.x * strideX + dragWidth / 2;
-        const currentCenterY = currentSlot.y * strideY + dragHeight / 2;
+      if (
+        currentSlot &&
+        (currentSlot.x !== desiredX ||
+          currentSlot.y !== desiredY ||
+          currentSlot.w !== desiredW ||
+          currentSlot.h !== desiredH)
+      ) {
+        const currentDragWidth =
+          currentSlot.w * cellWidth + (currentSlot.w - 1) * BOARD_GAP;
+        const currentDragHeight =
+          currentSlot.h * rowHeight + (currentSlot.h - 1) * BOARD_GAP;
+        const currentCenterX = currentSlot.x * strideX + currentDragWidth / 2;
+        const currentCenterY = currentSlot.y * strideY + currentDragHeight / 2;
         const currentDx = dragCenterX - currentCenterX;
         const currentDy = dragCenterY - currentCenterY;
         const currentDistSq = currentDx * currentDx + currentDy * currentDy;
@@ -364,20 +316,23 @@ export default function HomeScreen() {
         if (nextDistSq + hysteresisSq >= currentDistSq) {
           desiredX = currentSlot.x;
           desiredY = currentSlot.y;
+          desiredW = currentSlot.w;
+          desiredH = currentSlot.h;
         }
       }
 
-      const key = `${desiredX}-${desiredY}-${span.w}-${span.h}`;
+      const key = `${desiredX}-${desiredY}-${desiredW}-${desiredH}`;
       if (key !== dropTargetKeyRef.current) {
         dropTargetKeyRef.current = key;
         const nextTarget = {
           x: desiredX,
           y: desiredY,
-          w: span.w,
-          h: span.h,
+          w: desiredW,
+          h: desiredH,
         };
-        targetSlotRef.current = { x: desiredX, y: desiredY };
+        targetSlotRef.current = nextTarget;
         setDropTarget(nextTarget);
+        dropTargetRef.current = nextTarget;
         animateDropTargetTo(nextTarget);
       }
     },
@@ -387,17 +342,18 @@ export default function HomeScreen() {
       cellWidth,
       rowHeight,
       boardRows,
+      boardGames,
       animateDropTargetTo,
     ]
   );
 
   const handleDrop = useCallback(async () => {
-    if (!draggingId || !dropTarget) return;
-    await moveGameToBoardTarget(draggingId, dropTarget, boardColumns);
+    const currentTarget = dropTargetRef.current;
+    if (!draggingId || !currentTarget) return;
+    await moveGameToBoardTarget(draggingId, currentTarget, boardColumns);
     stopDragging();
   }, [
     draggingId,
-    dropTarget,
     moveGameToBoardTarget,
     boardColumns,
     stopDragging,
@@ -528,7 +484,7 @@ export default function HomeScreen() {
                         { w: board.w, h: board.h },
                         boardColumns
                       );
-                      dragSpanRef.current = lockedSpan;
+                      dragBaseSpanRef.current = lockedSpan;
                       setDragVisualSpan(lockedSpan);
                       setDragVisualScale(scale);
                       setDragIndex(index);
@@ -538,9 +494,10 @@ export default function HomeScreen() {
                         w: lockedSpan.w,
                         h: lockedSpan.h,
                       };
-                      targetSlotRef.current = { x: board.x, y: board.y };
+                      targetSlotRef.current = initialTarget;
                       dropTargetKeyRef.current = `${initialTarget.x}-${initialTarget.y}-${initialTarget.w}-${initialTarget.h}`;
                       setDropTarget(initialTarget);
+                      dropTargetRef.current = initialTarget;
                       animateDropTargetTo(initialTarget, true);
                     }}
                     delayLongPress={220}
@@ -640,11 +597,6 @@ export default function HomeScreen() {
           game={activeGame}
           onSave={handleSaveNote}
           onClose={handleCloseJournal}
-          sizePresets={activeGameSpanPresets}
-          currentSize={activeGameCurrentSpan}
-          onSelectSize={(preset, movement) => {
-            void handleSetActiveGameSpan(preset, movement);
-          }}
         />
       )}
     </>

@@ -382,6 +382,83 @@ describe("useGames", () => {
     expect(mockSetItem).toHaveBeenCalled();
   });
 
+  it("moveGameToBoardTarget reflows neighbors deterministically around the pinned target", async () => {
+    const stored = [
+      {
+        id: "dragged",
+        title: "Dragged",
+        status: "playing",
+        ticketType: "ticket",
+        notes: [],
+        board: { x: 0, y: 0, w: 2, h: 1, columns: 4 },
+      },
+      {
+        id: "cell",
+        title: "Cell",
+        status: "playing",
+        ticketType: "minimal",
+        notes: [],
+        board: { x: 2, y: 0, w: 1, h: 1, columns: 4 },
+      },
+      {
+        id: "tail",
+        title: "Tail",
+        status: "playing",
+        ticketType: "minimal",
+        notes: [],
+        board: { x: 3, y: 0, w: 1, h: 1, columns: 4 },
+      },
+    ];
+    mockGetItem.mockResolvedValue(JSON.stringify(stored));
+
+    const { result } = renderHook(() => useGames());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => {
+      await result.current.moveGameToBoardTarget!(
+        "dragged",
+        { x: 1, y: 0, w: 2, h: 1 },
+        4
+      );
+    });
+
+    const dragged = result.current.games.find((game) => game.id === "dragged");
+    const cell = result.current.games.find((game) => game.id === "cell");
+    const tail = result.current.games.find((game) => game.id === "tail");
+
+    expect(dragged?.board).toMatchObject({ x: 1, y: 0, w: 2, h: 1, columns: 4 });
+    expect(cell?.board).toMatchObject({ x: 0, y: 0, w: 1, h: 1, columns: 4 });
+    expect(tail?.board).toMatchObject({ x: 3, y: 0, w: 1, h: 1, columns: 4 });
+  });
+
+  it("moveGameToBoardTarget constrains pinned span to the card's allowed presets", async () => {
+    const stored = [
+      {
+        id: "postcard",
+        title: "Postcard",
+        status: "playing",
+        ticketType: "postcard",
+        notes: [],
+        board: { x: 0, y: 0, w: 2, h: 1, columns: 4 },
+      },
+    ];
+    mockGetItem.mockResolvedValue(JSON.stringify(stored));
+
+    const { result } = renderHook(() => useGames());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => {
+      await result.current.moveGameToBoardTarget!(
+        "postcard",
+        { x: 3, y: 2, w: 1, h: 1 },
+        4
+      );
+    });
+
+    const postcard = result.current.games.find((game) => game.id === "postcard");
+    expect(postcard?.board).toMatchObject({ x: 2, y: 2, w: 2, h: 1, columns: 4 });
+  });
+
   it("normalizes legacy invalid spans on load", async () => {
     const stored = [
       {

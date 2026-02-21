@@ -271,6 +271,62 @@ describe("HomeScreen", () => {
     });
   });
 
+  it("allows dragging a wide card over a single-cell occupied slot and still commits drop", async () => {
+    const windowSpy = jest
+      .spyOn(ReactNative, "useWindowDimensions")
+      .mockReturnValue({ width: 232, height: 900, scale: 2, fontScale: 1 });
+
+    try {
+      mockUseGamesContext.mockReturnValue(
+        makeContext({
+          loading: false,
+          playingGames: [
+            {
+              id: "drag-wide-overlap",
+              title: "Drag Wide Overlap",
+              status: "playing",
+              ticketType: "ticket",
+              board: { x: 0, y: 0, w: 2, h: 1, columns: 4 },
+              notes: [],
+            },
+            {
+              id: "target-cell",
+              title: "Target Cell",
+              status: "playing",
+              ticketType: "minimal",
+              board: { x: 2, y: 0, w: 1, h: 1, columns: 4 },
+              notes: [],
+            },
+          ],
+        })
+      );
+
+      render(<HomeScreen />);
+      fireEvent(screen.getByTestId("playing-card-add-drag-wide-overlap"), "longPress", {
+        nativeEvent: { locationX: 8, locationY: 8 },
+      });
+
+      await waitFor(() =>
+        expect(capturedPanResponderConfig.onMoveShouldSetPanResponderCapture()).toBe(true)
+      );
+
+      await act(async () => {
+        capturedPanResponderConfig.onPanResponderMove({}, { moveX: 120, moveY: 8 });
+        capturedPanResponderConfig.onPanResponderRelease();
+      });
+
+      await waitFor(() => expect(mockMoveGameToBoardTarget).toHaveBeenCalledTimes(1));
+      const [gameId, target, columns] =
+        mockMoveGameToBoardTarget.mock.calls[mockMoveGameToBoardTarget.mock.calls.length - 1];
+      expect(gameId).toBe("drag-wide-overlap");
+      expect(columns).toBe(4);
+      expect(target).toEqual(expect.objectContaining({ y: 0, w: 2, h: 1 }));
+      expect(target.x).toBeGreaterThanOrEqual(1);
+    } finally {
+      windowSpy.mockRestore();
+    }
+  });
+
   it("morphs drop target span near a column boundary for 1x1 cards", async () => {
     const windowSpy = jest
       .spyOn(ReactNative, "useWindowDimensions")

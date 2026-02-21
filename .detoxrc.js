@@ -17,6 +17,13 @@ module.exports = {
       build:
         "xcodebuild -workspace ios/gamebook.xcworkspace -scheme gamebook -configuration Debug -sdk iphonesimulator -derivedDataPath ios/build",
     },
+    "ios.release": {
+      type: "ios.app",
+      binaryPath:
+        "ios/build/Build/Products/Release-iphonesimulator/gamebook.app",
+      build:
+        "xcodebuild -workspace ios/gamebook.xcworkspace -scheme gamebook -configuration Release -sdk iphonesimulator -derivedDataPath ios/build",
+    },
   },
   devices: {
     simulator: {
@@ -30,6 +37,10 @@ module.exports = {
     "ios.sim.debug": {
       device: "simulator",
       app: "ios.debug",
+    },
+    "ios.sim.release": {
+      device: "simulator",
+      app: "ios.release",
     },
   },
 };

@@ -85,6 +85,7 @@ Responsibilities:
 ### Engine Boundary
 
 - `/Users/keilaloia/gamebook/lib/board/engine.ts`
+- `/Users/keilaloia/gamebook/lib/board/conflict-scope.ts`
 - `/Users/keilaloia/gamebook/lib/board/metrics.ts`
 - `/Users/keilaloia/gamebook/lib/board-layout.ts`
 
@@ -92,6 +93,7 @@ Responsibilities:
 
 - strict no-overlap commit policy
 - per-cell conflict detection
+- cross-page drag conflict scope normalization
 - span presets and constraints
 - normalized placement clamping
 - board size and row metrics

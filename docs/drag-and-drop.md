@@ -79,6 +79,7 @@ Responsibilities:
 ### Domain/Engine Boundary
 
 - `/Users/keilaloia/gamebook/lib/board/engine.ts`
+- `/Users/keilaloia/gamebook/lib/board/conflict-scope.ts`
 - `/Users/keilaloia/gamebook/lib/board/metrics.ts`
 - `/Users/keilaloia/gamebook/lib/board-layout.ts`
 
@@ -87,6 +88,7 @@ Responsibilities:
 - span constraints and allowed presets
 - placement normalization and clamping
 - overlap/conflict detection
+- cross-page conflict-scope normalization for destination-page hover
 - strict commit policy (accept empty, reject overlap)
 - board geometry metrics
 
@@ -117,6 +119,8 @@ Responsibilities:
 4. Enumerate candidate slots and choose nearest center.
 5. Apply hysteresis to avoid jitter/flicker near boundaries.
 6. Compute conflicts via `getDropTargetConflictCells`.
+   - During cross-page drag, normalize conflict scope with
+     `getDragConflictScopeGames` so destination-page overlap is still detected.
 7. Update animated target indicator + per-cell conflict markers.
 8. Trigger a haptic selection tick when the resolved slot key changes.
 9. Apply edge auto-scroll when pointer nears top/bottom viewport edges.

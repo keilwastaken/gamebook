@@ -26,6 +26,7 @@ import { useGamesContext } from "@/lib/games-context";
 import {
   BOARD_GAP,
   chooseNearestAllowedSpan,
+  getDragConflictScopeGames,
   getBoardMetrics,
   getBoardWidth,
   getDropTargetConflictCells,
@@ -229,7 +230,7 @@ export default function HomeScreen() {
       const toWidth = target.w * cellWidth + (target.w - 1) * BOARD_GAP;
       const toHeight = target.h * rowHeight + (target.h - 1) * BOARD_GAP;
 
-      if (immediate) {
+      if (immediate || process.env.NODE_ENV === "test") {
         dropTargetLeft.setValue(toLeft);
         dropTargetTop.setValue(toTop);
         dropTargetWidth.setValue(toWidth);
@@ -404,7 +405,7 @@ export default function HomeScreen() {
     jiggleLoopRef.current = null;
     jiggle.setValue(0);
 
-    if (!draggingId) return;
+    if (!draggingId || process.env.NODE_ENV === "test") return;
     const sequence = Animated.sequence([
       Animated.timing(jiggle, { toValue: -1, duration: 120, useNativeDriver: true }),
       Animated.timing(jiggle, { toValue: 1, duration: 150, useNativeDriver: true }),
@@ -413,6 +414,13 @@ export default function HomeScreen() {
     const loop = Animated.loop(sequence);
     jiggleLoopRef.current = loop;
     loop.start();
+    return () => {
+      loop.stop();
+      if (jiggleLoopRef.current === loop) {
+        jiggleLoopRef.current = null;
+      }
+      jiggle.setValue(0);
+    };
   }, [draggingId, jiggle]);
 
   const updateDropTarget = useCallback(
@@ -507,23 +515,12 @@ export default function HomeScreen() {
           w: desiredW,
           h: desiredH,
         };
-        // When dragging across pages, the source card may not be in this page's list yet.
-        // Include a synthetic copy so conflict detection still resolves span/ticket rules.
-        const conflictScopeGames = boardGames.some((game) => game.id === draggingGame.id)
-          ? boardGames
-          : [
-              ...boardGames,
-              {
-                ...draggingGame,
-                board: {
-                  x: 0,
-                  y: 0,
-                  w: baseSpan.w,
-                  h: baseSpan.h,
-                  columns: boardColumns,
-                },
-              },
-            ];
+        const conflictScopeGames = getDragConflictScopeGames(
+          boardGames,
+          draggingGame,
+          baseSpan,
+          boardColumns
+        );
         const nextConflictCells = getDropTargetConflictCells(
           conflictScopeGames,
           draggingGame.id,

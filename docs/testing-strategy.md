@@ -77,6 +77,8 @@ pnpm test:dragdrop:regression
 - `/Users/keilaloia/gamebook/lib/board/__tests__/engine.test.ts`
   - validates exact conflict-cell detection
   - validates strict no-overlap commit policy in isolation
+- `/Users/keilaloia/gamebook/lib/board/__tests__/conflict-scope.test.ts`
+  - validates cross-page drag conflict-scope normalization behavior
 
 This suite is highly recommended when touching board engine logic even though it
 is not currently part of `test:dragdrop:regression`.

@@ -108,8 +108,9 @@ Responsibilities:
 
 1. Long-press card in `/Users/keilaloia/gamebook/app/(tabs)/index.tsx`.
 2. Base span is constrained via `constrainSpanForCard`.
-3. Initial target is current card slot.
-4. Conflict cells are computed immediately for the initial target.
+3. On-device drags apply a small upward thumb-lift anchor offset (bounded by card height) so drop feedback is less occluded by finger placement.
+4. Initial target is current card slot.
+5. Conflict cells are computed immediately for the initial target.
 
 ### Drag Move (`updateDropTarget`)
 

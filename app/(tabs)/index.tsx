@@ -67,6 +67,9 @@ const BOARD_PAGE_DRAG_SWITCH_MIN_PX = 34;
 const BOARD_PAGE_DRAG_SWITCH_MAX_PX = 72;
 const BOARD_PAGE_DRAG_SWITCH_DWELL_MS = 180;
 const BOARD_PAGE_DRAG_SWITCH_COOLDOWN_MS = 560;
+const DRAG_THUMB_LIFT_MIN_PX = 6;
+const DRAG_THUMB_LIFT_MAX_PX = 14;
+const DRAG_THUMB_LIFT_HEIGHT_RATIO = 0.18;
 
 export default function HomeScreen() {
   const {
@@ -973,7 +976,19 @@ export default function HomeScreen() {
                           boardRef.current?.measureInWindow((x, y) => {
                             boardOriginRef.current = { x, y };
                           });
-                          dragOffsetRef.current = { x: locationX, y: locationY };
+                          const hasAbsoluteTouchPosition =
+                            typeof event.nativeEvent.pageX === "number" &&
+                            typeof event.nativeEvent.pageY === "number";
+                          const thumbLift = hasAbsoluteTouchPosition
+                            ? Math.max(
+                                DRAG_THUMB_LIFT_MIN_PX,
+                                Math.min(
+                                  DRAG_THUMB_LIFT_MAX_PX,
+                                  slotHeight * DRAG_THUMB_LIFT_HEIGHT_RATIO
+                                )
+                              )
+                            : 0;
+                          dragOffsetRef.current = { x: locationX, y: locationY + thumbLift };
                           dragXY.setValue({ x: slotLeft, y: slotTop });
                           setDraggingId(game.id);
                           setDraggingGameSnapshot(game);

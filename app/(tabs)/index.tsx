@@ -507,8 +507,25 @@ export default function HomeScreen() {
           w: desiredW,
           h: desiredH,
         };
+        // When dragging across pages, the source card may not be in this page's list yet.
+        // Include a synthetic copy so conflict detection still resolves span/ticket rules.
+        const conflictScopeGames = boardGames.some((game) => game.id === draggingGame.id)
+          ? boardGames
+          : [
+              ...boardGames,
+              {
+                ...draggingGame,
+                board: {
+                  x: 0,
+                  y: 0,
+                  w: baseSpan.w,
+                  h: baseSpan.h,
+                  columns: boardColumns,
+                },
+              },
+            ];
         const nextConflictCells = getDropTargetConflictCells(
-          boardGames,
+          conflictScopeGames,
           draggingGame.id,
           nextTarget,
           boardColumns
@@ -907,221 +924,218 @@ export default function HomeScreen() {
         ]}
         pointerEvents={isActivePage ? "auto" : "none"}
       >
-        {pageGames.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>
-              No games pinned yet.{"\n"}Add one to start your journey!
-            </Text>
-          </View>
-        ) : (
-          <View
-            ref={isActivePage ? boardRef : undefined}
-            style={[styles.board, { height: boardHeight }]}
-            onLayout={
-              isActivePage
-                ? () => {
-                    boardRef.current?.measureInWindow((x, y) => {
-                      boardOriginRef.current = { x, y };
-                    });
-                  }
-                : undefined
-            }
-          >
-            {pageGames.map((game, index) => {
-              const board = game.board ?? { x: 0, y: index, w: 1, h: 1 };
-              const ticketType = game.ticketType ?? DEFAULT_TICKET_TYPE;
-              const slotWidth = board.w * cellWidth + (board.w - 1) * BOARD_GAP;
-              const slotHeight = board.h * rowHeight + (board.h - 1) * BOARD_GAP;
-              const scale = getCardRenderScale(ticketType);
-              const slotLeft = board.x * (cellWidth + BOARD_GAP);
-              const slotTop = board.y * (rowHeight + BOARD_GAP);
-              const isDragging = isActivePage && draggingId === game.id;
+        <View
+          ref={isActivePage ? boardRef : undefined}
+          style={[styles.board, { height: boardHeight }]}
+          onLayout={
+            isActivePage
+              ? () => {
+                  boardRef.current?.measureInWindow((x, y) => {
+                    boardOriginRef.current = { x, y };
+                  });
+                }
+              : undefined
+          }
+        >
+          {pageGames.map((game, index) => {
+            const board = game.board ?? { x: 0, y: index, w: 1, h: 1 };
+            const ticketType = game.ticketType ?? DEFAULT_TICKET_TYPE;
+            const slotWidth = board.w * cellWidth + (board.w - 1) * BOARD_GAP;
+            const slotHeight = board.h * rowHeight + (board.h - 1) * BOARD_GAP;
+            const scale = getCardRenderScale(ticketType);
+            const slotLeft = board.x * (cellWidth + BOARD_GAP);
+            const slotTop = board.y * (rowHeight + BOARD_GAP);
+            const isDragging = isActivePage && draggingId === game.id;
 
-              return (
-                <View key={game.id}>
-                  <Pressable
-                    disabled={!isActivePage}
-                    onPress={
-                      isActivePage
-                        ? () => {
-                            if (consumeNextPress.current || draggingId) {
-                              consumeNextPress.current = false;
-                              return;
-                            }
-                            handleAddNote(game.id);
+            return (
+              <View key={game.id}>
+                <Pressable
+                  disabled={!isActivePage}
+                  onPress={
+                    isActivePage
+                      ? () => {
+                          if (consumeNextPress.current || draggingId) {
+                            consumeNextPress.current = false;
+                            return;
                           }
-                        : undefined
-                    }
-                    onLongPress={
-                      isActivePage
-                        ? (event) => {
-                            const locationX = event.nativeEvent.locationX;
-                            const locationY = event.nativeEvent.locationY;
-                            setPageMenuOpen(false);
-                            consumeNextPress.current = true;
-                            dragStartScrollOffsetRef.current = scrollOffsetRef.current;
-                            dragTargetHapticAtRef.current = 0;
-                            dragPageSwitchAtRef.current = 0;
-                            dragPageSwitchEdgeIntentRef.current = null;
-                            boardRef.current?.measureInWindow((x, y) => {
-                              boardOriginRef.current = { x, y };
-                            });
-                            dragOffsetRef.current = { x: locationX, y: locationY };
-                            dragXY.setValue({ x: slotLeft, y: slotTop });
-                            setDraggingId(game.id);
-                            setDraggingGameSnapshot(game);
-                            const lockedSpan = constrainSpanForCard(
-                              ticketType,
-                              { w: board.w, h: board.h },
-                              boardColumns
-                            );
-                            dragBaseSpanRef.current = lockedSpan;
-                            setDragVisualSpan(lockedSpan);
-                            setDragVisualScale(scale);
-                            setDragIndex(index);
-                            const initialTarget = {
-                              x: board.x,
-                              y: Math.min(
-                                board.y,
-                                Math.max(0, HOME_BOARD_ROW_COUNT - lockedSpan.h)
-                              ),
-                              w: lockedSpan.w,
-                              h: lockedSpan.h,
-                            };
-                            const initialConflictCells = getDropTargetConflictCells(
-                              boardGames,
-                              game.id,
-                              initialTarget,
-                              boardColumns
-                            );
-                            dropTargetConflictKeyRef.current = initialConflictCells
-                              .map((cell) => `${cell.x},${cell.y}`)
-                              .join("|");
-                            setDropTargetConflictCells(initialConflictCells);
-                            targetSlotRef.current = initialTarget;
-                            dropTargetKeyRef.current = `${initialTarget.x}-${initialTarget.y}-${initialTarget.w}-${initialTarget.h}`;
-                            setDropTarget(initialTarget);
-                            dropTargetRef.current = initialTarget;
-                            animateDropTargetTo(initialTarget, true);
-                          }
-                        : undefined
-                    }
-                    delayLongPress={220}
-                    testID={isActivePage ? `playing-card-add-${game.id}` : undefined}
-                    accessibilityLabel={
-                      isActivePage ? `Update bookmark for ${game.title}` : undefined
-                    }
-                    accessibilityRole={isActivePage ? "button" : undefined}
-                    style={[
-                      styles.boardItem,
-                      {
-                        left: slotLeft,
-                        top: slotTop,
-                        width: slotWidth,
-                        height: slotHeight,
-                        zIndex: isDragging ? 1 : 2,
-                        opacity: isDragging ? 0.18 : 1,
-                      },
-                    ]}
-                  >
-                    <View
-                      style={styles.slotCenter}
-                      testID={isActivePage ? `playing-card-${game.id}` : undefined}
-                    >
-                      <Animated.View
-                        style={{
-                          transform: [
-                            { scale },
-                            {
-                              rotate: draggingId === game.id
-                                ? "0.8deg"
-                                : draggingId
-                                  ? jiggleRotation
-                                  : "0deg",
-                            },
-                          ],
-                        }}
-                      >
-                        {renderCardVisual(game, index)}
-                      </Animated.View>
-                    </View>
-                  </Pressable>
-                </View>
-              );
-            })}
-            {isActivePage && draggingGame ? (
-              <View pointerEvents="none" style={styles.gridOverlay}>
-                {Array.from({ length: HOME_BOARD_ROW_COUNT * boardColumns }).map((_, index) => {
-                  const row = Math.floor(index / boardColumns);
-                  const col = index % boardColumns;
-                  return (
-                    <View
-                      key={`grid-${col}-${row}`}
-                      style={[
-                        styles.gridCell,
-                        {
-                          left: col * (cellWidth + BOARD_GAP),
-                          top: row * (rowHeight + BOARD_GAP),
-                          width: cellWidth,
-                          height: rowHeight,
-                        },
-                      ]}
-                    />
-                  );
-                })}
-                {dropTarget ? (
-                  <Animated.View
-                    testID="drop-target-indicator"
-                    style={[
-                      styles.dropTarget,
-                      styles.dropTargetActive,
-                      {
-                        left: dropTargetLeft,
-                        top: dropTargetTop,
-                        width: dropTargetWidth,
-                        height: dropTargetHeight,
-                      },
-                    ]}
-                  />
-                ) : null}
-                {dropTargetConflictCells.map((cell) => (
+                          handleAddNote(game.id);
+                        }
+                      : undefined
+                  }
+                  onLongPress={
+                    isActivePage
+                      ? (event) => {
+                          const locationX = event.nativeEvent.locationX;
+                          const locationY = event.nativeEvent.locationY;
+                          setPageMenuOpen(false);
+                          consumeNextPress.current = true;
+                          dragStartScrollOffsetRef.current = scrollOffsetRef.current;
+                          dragTargetHapticAtRef.current = 0;
+                          dragPageSwitchAtRef.current = 0;
+                          dragPageSwitchEdgeIntentRef.current = null;
+                          boardRef.current?.measureInWindow((x, y) => {
+                            boardOriginRef.current = { x, y };
+                          });
+                          dragOffsetRef.current = { x: locationX, y: locationY };
+                          dragXY.setValue({ x: slotLeft, y: slotTop });
+                          setDraggingId(game.id);
+                          setDraggingGameSnapshot(game);
+                          const lockedSpan = constrainSpanForCard(
+                            ticketType,
+                            { w: board.w, h: board.h },
+                            boardColumns
+                          );
+                          dragBaseSpanRef.current = lockedSpan;
+                          setDragVisualSpan(lockedSpan);
+                          setDragVisualScale(scale);
+                          setDragIndex(index);
+                          const initialTarget = {
+                            x: board.x,
+                            y: Math.min(
+                              board.y,
+                              Math.max(0, HOME_BOARD_ROW_COUNT - lockedSpan.h)
+                            ),
+                            w: lockedSpan.w,
+                            h: lockedSpan.h,
+                          };
+                          const initialConflictCells = getDropTargetConflictCells(
+                            boardGames,
+                            game.id,
+                            initialTarget,
+                            boardColumns
+                          );
+                          dropTargetConflictKeyRef.current = initialConflictCells
+                            .map((cell) => `${cell.x},${cell.y}`)
+                            .join("|");
+                          setDropTargetConflictCells(initialConflictCells);
+                          targetSlotRef.current = initialTarget;
+                          dropTargetKeyRef.current = `${initialTarget.x}-${initialTarget.y}-${initialTarget.w}-${initialTarget.h}`;
+                          setDropTarget(initialTarget);
+                          dropTargetRef.current = initialTarget;
+                          animateDropTargetTo(initialTarget, true);
+                        }
+                      : undefined
+                  }
+                  delayLongPress={220}
+                  testID={isActivePage ? `playing-card-add-${game.id}` : undefined}
+                  accessibilityLabel={isActivePage ? `Update bookmark for ${game.title}` : undefined}
+                  accessibilityRole={isActivePage ? "button" : undefined}
+                  style={[
+                    styles.boardItem,
+                    {
+                      left: slotLeft,
+                      top: slotTop,
+                      width: slotWidth,
+                      height: slotHeight,
+                      zIndex: isDragging ? 1 : 2,
+                      opacity: isDragging ? 0.18 : 1,
+                    },
+                  ]}
+                >
                   <View
-                    key={`drop-target-conflict-${cell.x}-${cell.y}`}
-                    testID={`drop-target-conflict-${cell.x}-${cell.y}`}
+                    style={styles.slotCenter}
+                    testID={isActivePage ? `playing-card-${game.id}` : undefined}
+                  >
+                    <Animated.View
+                      style={{
+                        transform: [
+                          { scale },
+                          {
+                            rotate: draggingId === game.id
+                              ? "0.8deg"
+                              : draggingId
+                                ? jiggleRotation
+                                : "0deg",
+                          },
+                        ],
+                      }}
+                    >
+                      {renderCardVisual(game, index)}
+                    </Animated.View>
+                  </View>
+                </Pressable>
+              </View>
+            );
+          })}
+          {isActivePage && draggingGame ? (
+            <View pointerEvents="none" style={styles.gridOverlay}>
+              {Array.from({ length: HOME_BOARD_ROW_COUNT * boardColumns }).map((_, index) => {
+                const row = Math.floor(index / boardColumns);
+                const col = index % boardColumns;
+                return (
+                  <View
+                    key={`grid-${col}-${row}`}
                     style={[
-                      styles.dropTargetConflictCell,
+                      styles.gridCell,
                       {
-                        left: cell.x * (cellWidth + BOARD_GAP),
-                        top: cell.y * (rowHeight + BOARD_GAP),
+                        left: col * (cellWidth + BOARD_GAP),
+                        top: row * (rowHeight + BOARD_GAP),
                         width: cellWidth,
                         height: rowHeight,
                       },
                     ]}
                   />
-                ))}
-              </View>
-            ) : null}
-            {isActivePage && draggingGame ? (
-              <Animated.View
-                pointerEvents="none"
-                style={[
-                  styles.dragOverlay,
-                  {
-                    width: dragSlotWidth,
-                    height: dragSlotHeight,
-                    transform: [{ translateX: dragXY.x }, { translateY: dragXY.y }],
-                  },
-                ]}
-              >
-                <View style={styles.slotCenter}>
-                  <View style={{ transform: [{ scale: dragVisualScale }, { rotate: "0.8deg" }] }}>
-                    {renderCardVisual(draggingGame, dragIndex)}
-                  </View>
+                );
+              })}
+              {dropTarget ? (
+                <Animated.View
+                  testID="drop-target-indicator"
+                  style={[
+                    styles.dropTarget,
+                    styles.dropTargetActive,
+                    {
+                      left: dropTargetLeft,
+                      top: dropTargetTop,
+                      width: dropTargetWidth,
+                      height: dropTargetHeight,
+                    },
+                  ]}
+                />
+              ) : null}
+              {dropTargetConflictCells.map((cell) => (
+                <View
+                  key={`drop-target-conflict-${cell.x}-${cell.y}`}
+                  testID={`drop-target-conflict-${cell.x}-${cell.y}`}
+                  style={[
+                    styles.dropTargetConflictCell,
+                    {
+                      left: cell.x * (cellWidth + BOARD_GAP),
+                      top: cell.y * (rowHeight + BOARD_GAP),
+                      width: cellWidth,
+                      height: rowHeight,
+                    },
+                  ]}
+                />
+              ))}
+            </View>
+          ) : null}
+          {isActivePage && draggingGame ? (
+            <Animated.View
+              pointerEvents="none"
+              style={[
+                styles.dragOverlay,
+                {
+                  width: dragSlotWidth,
+                  height: dragSlotHeight,
+                  transform: [{ translateX: dragXY.x }, { translateY: dragXY.y }],
+                },
+              ]}
+            >
+              <View style={styles.slotCenter}>
+                <View style={{ transform: [{ scale: dragVisualScale }, { rotate: "0.8deg" }] }}>
+                  {renderCardVisual(draggingGame, dragIndex)}
                 </View>
-              </Animated.View>
-            ) : null}
-          </View>
-        )}
+              </View>
+            </Animated.View>
+          ) : null}
+          {pageGames.length === 0 && !(isActivePage && draggingGame) ? (
+            <View pointerEvents="none" style={styles.emptyBoardOverlay}>
+              <Text style={styles.emptyText}>
+                No games pinned yet.{"\n"}Add one to start your journey!
+              </Text>
+            </View>
+          ) : null}
+        </View>
       </View>
     );
   };
@@ -1331,8 +1345,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingTop: 60,
   },
-  emptyContainer: {
-    flex: 1,
+  emptyBoardOverlay: {
+    ...StyleSheet.absoluteFillObject,
     justifyContent: "center",
     alignItems: "center",
     paddingTop: 60,

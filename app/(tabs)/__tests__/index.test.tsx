@@ -569,6 +569,119 @@ describe("[dragdrop-regression] HomeScreen", () => {
     }
   });
 
+  it("switches to the previous page while dragging near the left edge", async () => {
+    const windowSpy = jest
+      .spyOn(ReactNative, "useWindowDimensions")
+      .mockReturnValue({ width: 232, height: 900, scale: 2, fontScale: 1 });
+
+    try {
+      mockUseGamesContext.mockReturnValue(
+        makeContext({
+          loading: false,
+          playingGames: [
+            {
+              id: "left-edge-page-1",
+              title: "Left Edge Page One",
+              status: "playing",
+              ticketType: "minimal",
+              board: { x: 0, y: 0, w: 1, h: 1, columns: 4 },
+              notes: [],
+            },
+            {
+              id: "left-edge-page-2",
+              title: "Left Edge Page Two",
+              status: "playing",
+              ticketType: "minimal",
+              board: { x: 0, y: 6, w: 1, h: 1, columns: 4 },
+              notes: [],
+            },
+          ],
+        })
+      );
+
+      render(<HomeScreen />);
+      fireEvent.press(screen.getByTestId("home-page-menu-trigger"));
+      fireEvent.press(screen.getByTestId("home-page-option-2"));
+      expect(screen.getByText("1 game | Page 2 of 2")).toBeTruthy();
+
+      fireEvent(screen.getByTestId("playing-card-add-left-edge-page-2"), "longPress", {
+        nativeEvent: { locationX: 8, locationY: 8 },
+      });
+
+      await waitFor(() =>
+        expect(capturedPanResponderConfig.onMoveShouldSetPanResponderCapture()).toBe(true)
+      );
+
+      await act(async () => {
+        capturedPanResponderConfig.onPanResponderMove({}, { moveX: 4, moveY: 110 });
+      });
+
+      await waitFor(() => expect(screen.getByText("1 game | Page 1 of 2")).toBeTruthy());
+    } finally {
+      windowSpy.mockRestore();
+    }
+  });
+
+  it("shows conflict cells after right-to-left page switch when hovering an occupied slot", async () => {
+    const windowSpy = jest
+      .spyOn(ReactNative, "useWindowDimensions")
+      .mockReturnValue({ width: 232, height: 900, scale: 2, fontScale: 1 });
+
+    try {
+      mockUseGamesContext.mockReturnValue(
+        makeContext({
+          loading: false,
+          playingGames: [
+            {
+              id: "rtl-blocker",
+              title: "RTL Blocker",
+              status: "playing",
+              ticketType: "minimal",
+              board: { x: 0, y: 0, w: 1, h: 1, columns: 4 },
+              notes: [],
+            },
+            {
+              id: "rtl-dragged-page-2",
+              title: "RTL Dragged Page Two",
+              status: "playing",
+              ticketType: "minimal",
+              board: { x: 0, y: 6, w: 1, h: 1, columns: 4 },
+              notes: [],
+            },
+          ],
+        })
+      );
+
+      render(<HomeScreen />);
+      fireEvent.press(screen.getByTestId("home-page-menu-trigger"));
+      fireEvent.press(screen.getByTestId("home-page-option-2"));
+      expect(screen.getByText("1 game | Page 2 of 2")).toBeTruthy();
+
+      fireEvent(screen.getByTestId("playing-card-add-rtl-dragged-page-2"), "longPress", {
+        nativeEvent: { locationX: 8, locationY: 8 },
+      });
+
+      await waitFor(() =>
+        expect(capturedPanResponderConfig.onMoveShouldSetPanResponderCapture()).toBe(true)
+      );
+
+      // Move to left edge to switch back to page 1.
+      await act(async () => {
+        capturedPanResponderConfig.onPanResponderMove({}, { moveX: 4, moveY: 110 });
+      });
+      await waitFor(() => expect(screen.getByText("1 game | Page 1 of 2")).toBeTruthy());
+
+      // Hover over blocker (x=0, y=0) and verify conflict highlight appears.
+      await act(async () => {
+        capturedPanResponderConfig.onPanResponderMove({}, { moveX: 18, moveY: 18 });
+      });
+
+      await waitFor(() => expect(screen.getByTestId("drop-target-conflict-0-0")).toBeTruthy());
+    } finally {
+      windowSpy.mockRestore();
+    }
+  });
+
   it("morphs drop target span near a column boundary for 1x1 cards", async () => {
     const windowSpy = jest
       .spyOn(ReactNative, "useWindowDimensions")

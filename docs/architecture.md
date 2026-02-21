@@ -40,11 +40,14 @@ constants/
 └── theme.ts          # Light/dark theme maps built from palette
 lib/                  # App state, persistence, shared types
 ├── games-context.tsx # React context for game list
+├── board-layout.ts   # Drag/drop placement + reflow algorithm
 ├── game-store.ts     # AsyncStorage persistence
 └── types.ts          # Shared domain types
 hooks/
 └── use-theme-color.ts
 assets/images/        # Static images (textures, tab-bar art)
+stryker.dragdrop.conf.cjs       # Core mutation scope (board-layout + game-store)
+stryker.dragdrop.full.conf.cjs  # Deep mutation scope (adds app/(tabs)/index.tsx)
 ```
 
 ## Dependency Rules

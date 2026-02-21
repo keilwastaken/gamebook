@@ -39,6 +39,9 @@ const BASE_CARD_SIZE: Record<TicketType, { width: number; height: number }> = {
   minimal: { width: 220, height: 84 },
 };
 
+type GridRect = { x: number; y: number; w: number; h: number };
+type GridCell = { x: number; y: number };
+
 function chooseNearestAllowedSpan(
   presets: Array<{ w: number; h: number }>,
   intent: { w: number; h: number },
@@ -69,6 +72,69 @@ function chooseNearestAllowedSpan(
   }, fallbackPreset);
 }
 
+function normalizePlacementForGame(game: Game, columns: number): GridRect {
+  const rawSpan = game.board ? { w: game.board.w, h: game.board.h } : getCardSpan(game.ticketType);
+  const span = constrainSpanForCard(game.ticketType, rawSpan, columns);
+  const maxX = Math.max(0, columns - span.w);
+
+  return {
+    x: Math.max(0, Math.min(game.board?.x ?? 0, maxX)),
+    y: Math.max(0, game.board?.y ?? 0),
+    w: span.w,
+    h: span.h,
+  };
+}
+
+function normalizePlacementForTarget(
+  ticketType: TicketType | undefined,
+  target: GridRect,
+  columns: number
+): GridRect {
+  const span = constrainSpanForCard(ticketType, { w: target.w, h: target.h }, columns);
+  const maxX = Math.max(0, columns - span.w);
+
+  return {
+    x: Math.max(0, Math.min(target.x, maxX)),
+    y: Math.max(0, target.y),
+    w: span.w,
+    h: span.h,
+  };
+}
+
+function getNoPushDropTargetConflictCells(
+  games: Game[],
+  draggingGame: Game,
+  target: GridRect,
+  columns: number
+): GridCell[] {
+  const placements = new Map<string, GridRect>();
+  for (const game of games) {
+    placements.set(game.id, normalizePlacementForGame(game, columns));
+  }
+
+  const movingTo = normalizePlacementForTarget(draggingGame.ticketType, target, columns);
+  const occupied = new Set<string>();
+  for (const game of games) {
+    if (game.id === draggingGame.id) continue;
+    const placement = placements.get(game.id);
+    if (!placement) continue;
+    for (let y = placement.y; y < placement.y + placement.h; y += 1) {
+      for (let x = placement.x; x < placement.x + placement.w; x += 1) {
+        occupied.add(`${x},${y}`);
+      }
+    }
+  }
+
+  const conflicts: GridCell[] = [];
+  for (let y = movingTo.y; y < movingTo.y + movingTo.h; y += 1) {
+    for (let x = movingTo.x; x < movingTo.x + movingTo.w; x += 1) {
+      if (occupied.has(`${x},${y}`)) conflicts.push({ x, y });
+    }
+  }
+
+  return conflicts;
+}
+
 export default function HomeScreen() {
   const {
     playingGames,
@@ -90,6 +156,8 @@ export default function HomeScreen() {
     w: number;
     h: number;
   } | null>(null);
+  const [dropTargetConflictCells, setDropTargetConflictCells] = useState<GridCell[]>([]);
+  const dropTargetConflictKeyRef = useRef("");
   const dropTargetRef = useRef<{
     x: number;
     y: number;
@@ -236,6 +304,8 @@ export default function HomeScreen() {
     dragBaseSpanRef.current = { w: 1, h: 1 };
     targetSlotRef.current = null;
     setDropTarget(null);
+    setDropTargetConflictCells([]);
+    dropTargetConflictKeyRef.current = "";
     dropTargetRef.current = null;
     dropTargetKeyRef.current = "";
   }, []);
@@ -330,6 +400,17 @@ export default function HomeScreen() {
           w: desiredW,
           h: desiredH,
         };
+        const nextConflictCells = getNoPushDropTargetConflictCells(
+          boardGames,
+          draggingGame,
+          nextTarget,
+          boardColumns
+        );
+        const nextConflictKey = nextConflictCells.map((cell) => `${cell.x},${cell.y}`).join("|");
+        if (dropTargetConflictKeyRef.current !== nextConflictKey) {
+          dropTargetConflictKeyRef.current = nextConflictKey;
+          setDropTargetConflictCells(nextConflictCells);
+        }
         targetSlotRef.current = nextTarget;
         setDropTarget(nextTarget);
         dropTargetRef.current = nextTarget;
@@ -494,6 +575,16 @@ export default function HomeScreen() {
                         w: lockedSpan.w,
                         h: lockedSpan.h,
                       };
+                      const initialConflictCells = getNoPushDropTargetConflictCells(
+                        boardGames,
+                        game,
+                        initialTarget,
+                        boardColumns
+                      );
+                      dropTargetConflictKeyRef.current = initialConflictCells
+                        .map((cell) => `${cell.x},${cell.y}`)
+                        .join("|");
+                      setDropTargetConflictCells(initialConflictCells);
                       targetSlotRef.current = initialTarget;
                       dropTargetKeyRef.current = `${initialTarget.x}-${initialTarget.y}-${initialTarget.w}-${initialTarget.h}`;
                       setDropTarget(initialTarget);
@@ -554,8 +645,10 @@ export default function HomeScreen() {
                 })}
                 {dropTarget ? (
                   <Animated.View
+                    testID="drop-target-indicator"
                     style={[
                       styles.dropTarget,
+                      styles.dropTargetActive,
                       {
                         left: dropTargetLeft,
                         top: dropTargetTop,
@@ -565,6 +658,21 @@ export default function HomeScreen() {
                     ]}
                   />
                 ) : null}
+                {dropTargetConflictCells.map((cell) => (
+                  <View
+                    key={`drop-target-conflict-${cell.x}-${cell.y}`}
+                    testID={`drop-target-conflict-${cell.x}-${cell.y}`}
+                    style={[
+                      styles.dropTargetConflictCell,
+                      {
+                        left: cell.x * (cellWidth + BOARD_GAP),
+                        top: cell.y * (rowHeight + BOARD_GAP),
+                        width: cellWidth,
+                        height: rowHeight,
+                      },
+                    ]}
+                  />
+                ))}
               </View>
             ) : null}
             {draggingGame ? (
@@ -667,9 +775,18 @@ const styles = StyleSheet.create({
   dropTarget: {
     position: "absolute",
     borderWidth: 2,
-    borderColor: palette.sage[500],
-    backgroundColor: "rgba(107, 139, 94, 0.14)",
     borderRadius: 8,
+  },
+  dropTargetActive: {
+    borderColor: palette.sage[500],
+    backgroundColor: palette.sage[100],
+  },
+  dropTargetConflictCell: {
+    position: "absolute",
+    borderWidth: 2,
+    borderColor: palette.clay[600],
+    backgroundColor: palette.clay[100],
+    borderRadius: 6,
   },
   dragOverlay: {
     position: "absolute",

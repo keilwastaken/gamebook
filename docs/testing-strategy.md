@@ -83,6 +83,14 @@ pnpm test:mutation:dragdrop:full:dry   # Dry-run check (core + UI drag screen)
 pnpm test:mutation:dragdrop:full       # Deep run (slower, use on release branch/nightly)
 ```
 
+Speed guidance:
+
+- Local development path should remain sub-1-minute:
+  - `pnpm test:dragdrop:regression`
+  - `pnpm test:mutation:dragdrop` (dry-run only)
+- CI mutation gate (`pnpm test:mutation:dragdrop:ci`) is allowed to run longer
+  and is budgeted for up to 10 minutes.
+
 Default mutation thresholds in `stryker.dragdrop.conf.cjs`:
 
 - `high`: 85
@@ -91,6 +99,12 @@ Default mutation thresholds in `stryker.dragdrop.conf.cjs`:
 
 If the mutation score drops below `break`, treat it as a release blocker for
 drag/drop changes until missing tests are added.
+
+Suite ownership note:
+
+- Test suites labeled with `[dragdrop-regression]` are release guardrails.
+- Do not delete or weaken their assertions without a matching behavior change,
+  updated mutation evidence, and explicit review sign-off.
 
 ## Visual UI Verification
 

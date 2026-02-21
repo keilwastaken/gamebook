@@ -4,6 +4,7 @@ import * as ReactNative from "react-native";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react-native";
 
 import HomeScreen from "../index";
+import { palette } from "@/constants/palette";
 import { useGamesContext } from "@/lib/games-context";
 import * as BoardLayout from "@/lib/board-layout";
 
@@ -74,7 +75,8 @@ function makeContext(overrides: Partial<ReturnType<typeof useGamesContext>> = {}
   } as ReturnType<typeof useGamesContext>;
 }
 
-describe("HomeScreen", () => {
+// Regression contract: drag/drop UI interaction tests for the board screen.
+describe("[dragdrop-regression] HomeScreen", () => {
   let capturedPanResponderConfig: any;
   let panResponderSpy: jest.SpyInstance;
 
@@ -370,6 +372,59 @@ describe("HomeScreen", () => {
           4
         )
       );
+    } finally {
+      windowSpy.mockRestore();
+    }
+  });
+
+  it("highlights only the conflicting grid cell instead of tinting the whole target red", async () => {
+    const windowSpy = jest
+      .spyOn(ReactNative, "useWindowDimensions")
+      .mockReturnValue({ width: 232, height: 900, scale: 2, fontScale: 1 });
+
+    try {
+      mockUseGamesContext.mockReturnValue(
+        makeContext({
+          loading: false,
+          playingGames: [
+            {
+              id: "dragged",
+              title: "Dragged",
+              status: "playing",
+              ticketType: "ticket",
+              board: { x: 0, y: 0, w: 2, h: 1, columns: 4 },
+              notes: [],
+            },
+            {
+              id: "blocker",
+              title: "Blocker",
+              status: "playing",
+              ticketType: "minimal",
+              board: { x: 3, y: 0, w: 1, h: 1, columns: 4 },
+              notes: [],
+            },
+          ],
+        })
+      );
+
+      render(<HomeScreen />);
+      fireEvent(screen.getByTestId("playing-card-add-dragged"), "longPress", {
+        nativeEvent: { locationX: 8, locationY: 8 },
+      });
+
+      await waitFor(() =>
+        expect(capturedPanResponderConfig.onMoveShouldSetPanResponderCapture()).toBe(true)
+      );
+
+      await act(async () => {
+        capturedPanResponderConfig.onPanResponderMove({}, { moveX: 300, moveY: 8 });
+      });
+
+      const indicator = screen.getByTestId("drop-target-indicator");
+      const style = ReactNative.StyleSheet.flatten(indicator.props.style);
+      expect(style.borderColor).toBe(palette.sage[500]);
+      expect(screen.getByTestId("drop-target-conflict-3-0")).toBeTruthy();
+      expect(screen.queryByTestId("drop-target-conflict-2-0")).toBeNull();
     } finally {
       windowSpy.mockRestore();
     }

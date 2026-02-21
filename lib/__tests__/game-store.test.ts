@@ -20,7 +20,8 @@ beforeEach(() => {
   mockSetItem.mockReset().mockResolvedValue(undefined);
 });
 
-describe("useGames", () => {
+// Regression contract: these tests pin drag/drop persistence + reflow invariants.
+describe("[dragdrop-regression] useGames", () => {
   it("seeds default games when storage is empty", async () => {
     mockGetItem.mockResolvedValue(null);
 
@@ -382,7 +383,56 @@ describe("useGames", () => {
     expect(mockSetItem).toHaveBeenCalled();
   });
 
-  it("moveGameToBoardTarget reflows neighbors deterministically around the pinned target", async () => {
+  it("moveGameToBoardTarget keeps surrounding cards static when dropping into an empty slot", async () => {
+    const stored = [
+      {
+        id: "dragged",
+        title: "Dragged",
+        status: "playing",
+        ticketType: "minimal",
+        notes: [],
+        board: { x: 0, y: 0, w: 1, h: 1, columns: 4 },
+      },
+      {
+        id: "postcard",
+        title: "Postcard",
+        status: "playing",
+        ticketType: "postcard",
+        notes: [],
+        board: { x: 1, y: 0, w: 2, h: 1, columns: 4 },
+      },
+      {
+        id: "tail",
+        title: "Tail",
+        status: "playing",
+        ticketType: "minimal",
+        notes: [],
+        board: { x: 3, y: 0, w: 1, h: 1, columns: 4 },
+      },
+    ];
+    mockGetItem.mockResolvedValue(JSON.stringify(stored));
+
+    const { result } = renderHook(() => useGames());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => {
+      await result.current.moveGameToBoardTarget!(
+        "dragged",
+        { x: 0, y: 1, w: 1, h: 1 },
+        4
+      );
+    });
+
+    const dragged = result.current.games.find((game) => game.id === "dragged");
+    const postcard = result.current.games.find((game) => game.id === "postcard");
+    const tail = result.current.games.find((game) => game.id === "tail");
+
+    expect(dragged?.board).toMatchObject({ x: 0, y: 1, w: 1, h: 1, columns: 4 });
+    expect(postcard?.board).toMatchObject({ x: 1, y: 0, w: 2, h: 1, columns: 4 });
+    expect(tail?.board).toMatchObject({ x: 3, y: 0, w: 1, h: 1, columns: 4 });
+  });
+
+  it("moveGameToBoardTarget leaves board unchanged when drop target overlaps one card", async () => {
     const stored = [
       {
         id: "dragged",
@@ -426,8 +476,116 @@ describe("useGames", () => {
     const cell = result.current.games.find((game) => game.id === "cell");
     const tail = result.current.games.find((game) => game.id === "tail");
 
-    expect(dragged?.board).toMatchObject({ x: 1, y: 0, w: 2, h: 1, columns: 4 });
-    expect(cell?.board).toMatchObject({ x: 0, y: 0, w: 1, h: 1, columns: 4 });
+    expect(dragged?.board).toMatchObject({ x: 0, y: 0, w: 2, h: 1, columns: 4 });
+    expect(cell?.board).toMatchObject({ x: 2, y: 0, w: 1, h: 1, columns: 4 });
+    expect(tail?.board).toMatchObject({ x: 3, y: 0, w: 1, h: 1, columns: 4 });
+  });
+
+  it("moveGameToBoardTarget leaves board unchanged when overlap touches multiple cards", async () => {
+    const stored = [
+      {
+        id: "dragged",
+        title: "Dragged",
+        status: "playing",
+        ticketType: "ticket",
+        notes: [],
+        board: { x: 0, y: 0, w: 2, h: 1, columns: 4 },
+      },
+      {
+        id: "left",
+        title: "Left",
+        status: "playing",
+        ticketType: "minimal",
+        notes: [],
+        board: { x: 2, y: 0, w: 1, h: 1, columns: 4 },
+      },
+      {
+        id: "right",
+        title: "Right",
+        status: "playing",
+        ticketType: "minimal",
+        notes: [],
+        board: { x: 3, y: 0, w: 1, h: 1, columns: 4 },
+      },
+      {
+        id: "tail",
+        title: "Tail",
+        status: "playing",
+        ticketType: "minimal",
+        notes: [],
+        board: { x: 0, y: 1, w: 1, h: 1, columns: 4 },
+      },
+    ];
+    mockGetItem.mockResolvedValue(JSON.stringify(stored));
+
+    const { result } = renderHook(() => useGames());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => {
+      await result.current.moveGameToBoardTarget!(
+        "dragged",
+        { x: 2, y: 0, w: 2, h: 1 },
+        4
+      );
+    });
+
+    const dragged = result.current.games.find((game) => game.id === "dragged");
+    const left = result.current.games.find((game) => game.id === "left");
+    const right = result.current.games.find((game) => game.id === "right");
+    const tail = result.current.games.find((game) => game.id === "tail");
+
+    expect(dragged?.board).toMatchObject({ x: 0, y: 0, w: 2, h: 1, columns: 4 });
+    expect(left?.board).toMatchObject({ x: 2, y: 0, w: 1, h: 1, columns: 4 });
+    expect(right?.board).toMatchObject({ x: 3, y: 0, w: 1, h: 1, columns: 4 });
+    expect(tail?.board).toMatchObject({ x: 0, y: 1, w: 1, h: 1, columns: 4 });
+  });
+
+  it("moveGameToBoardTarget leaves board unchanged when direct swap is unsafe", async () => {
+    const stored = [
+      {
+        id: "dragged",
+        title: "Dragged",
+        status: "playing",
+        ticketType: "minimal",
+        notes: [],
+        board: { x: 0, y: 0, w: 1, h: 1, columns: 4 },
+      },
+      {
+        id: "postcard",
+        title: "Postcard",
+        status: "playing",
+        ticketType: "postcard",
+        notes: [],
+        board: { x: 1, y: 0, w: 2, h: 2, columns: 4 },
+      },
+      {
+        id: "tail",
+        title: "Tail",
+        status: "playing",
+        ticketType: "minimal",
+        notes: [],
+        board: { x: 3, y: 0, w: 1, h: 1, columns: 4 },
+      },
+    ];
+    mockGetItem.mockResolvedValue(JSON.stringify(stored));
+
+    const { result } = renderHook(() => useGames());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => {
+      await result.current.moveGameToBoardTarget!(
+        "dragged",
+        { x: 1, y: 0, w: 1, h: 1 },
+        4
+      );
+    });
+
+    const dragged = result.current.games.find((game) => game.id === "dragged");
+    const postcard = result.current.games.find((game) => game.id === "postcard");
+    const tail = result.current.games.find((game) => game.id === "tail");
+
+    expect(dragged?.board).toMatchObject({ x: 0, y: 0, w: 1, h: 1, columns: 4 });
+    expect(postcard?.board).toMatchObject({ x: 1, y: 0, w: 2, h: 2, columns: 4 });
     expect(tail?.board).toMatchObject({ x: 3, y: 0, w: 1, h: 1, columns: 4 });
   });
 

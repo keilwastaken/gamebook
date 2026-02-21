@@ -22,7 +22,8 @@ const BASE_GAMES: Game[] = [
   { id: "minimal", title: "Minimal", ticketType: "minimal", status: "playing", notes: [] },
 ];
 
-describe("board-layout", () => {
+// Regression contract: these cases guard production drag/drop placement behavior.
+describe("[dragdrop-regression] board-layout", () => {
   it("defines grid size ids for every size from 1x1 to 4x4", () => {
     expect(ALL_GRID_SIZE_IDS).toHaveLength(16);
     expect(ALL_GRID_SIZE_IDS[0]).toBe("1x1");

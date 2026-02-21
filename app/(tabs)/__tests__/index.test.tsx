@@ -2,6 +2,7 @@ import React from "react";
 import { PanResponder } from "react-native";
 import * as ReactNative from "react-native";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react-native";
+import * as Haptics from "expo-haptics";
 
 import HomeScreen from "../index";
 import { palette } from "@/constants/palette";
@@ -16,13 +17,21 @@ jest.mock("@/lib/games-context", () => ({
   useGamesContext: jest.fn(),
 }));
 
+jest.mock("expo-haptics", () => ({
+  selectionAsync: jest.fn(() => Promise.resolve()),
+}));
+
 jest.mock("@/components/cards", () => {
   const React = require("react");
   const { Text } = require("react-native");
 
-  const makeCard = (kind: string) => ({ game }: { game: { id?: string; title: string } }) => (
-    <Text testID={`mock-card-${kind}-${game.id ?? game.title}`}>{game.title}</Text>
-  );
+  const makeCard = (kind: string) => {
+    const Card = ({ game }: { game: { id?: string; title: string } }) => (
+      <Text testID={`mock-card-${kind}-${game.id ?? game.title}`}>{game.title}</Text>
+    );
+    Card.displayName = `Mock${kind}Card`;
+    return Card;
+  };
 
   return {
     MinimalCard: makeCard("minimal"),
@@ -34,7 +43,7 @@ jest.mock("@/components/cards", () => {
 });
 
 jest.mock("@/components/journal-overlay", () => ({
-  JournalOverlay: ({
+  JournalOverlay: function JournalOverlayMock({
     game,
     onSave,
     onClose,
@@ -42,7 +51,7 @@ jest.mock("@/components/journal-overlay", () => ({
     game: { title: string };
     onSave: (note: { whereLeftOff: string; quickThought?: string }) => void;
     onClose: () => void;
-  }) => {
+  }) {
     const React = require("react");
     const { Pressable, Text, View } = require("react-native");
     return (
@@ -64,6 +73,8 @@ function makeContext(overrides: Partial<ReturnType<typeof useGamesContext>> = {}
   return {
     playingGames: [],
     loading: false,
+    currentHomePage: 0,
+    setCurrentHomePage: jest.fn(),
     saveNote: mockSaveNote,
     moveGameToBoardTarget: mockMoveGameToBoardTarget,
     games: [],
@@ -84,6 +95,7 @@ describe("[dragdrop-regression] HomeScreen", () => {
     mockSaveNote.mockReset().mockResolvedValue(undefined);
     mockMoveGameToBoardTarget.mockReset().mockResolvedValue(undefined);
     mockUseGamesContext.mockReset();
+    (Haptics.selectionAsync as jest.Mock).mockClear();
     capturedPanResponderConfig = null;
     panResponderSpy = jest.spyOn(PanResponder, "create").mockImplementation((config) => {
       capturedPanResponderConfig = config;
@@ -105,6 +117,126 @@ describe("[dragdrop-regression] HomeScreen", () => {
     mockUseGamesContext.mockReturnValue(makeContext({ loading: false, playingGames: [] }));
     render(<HomeScreen />);
     expect(screen.getByText(/No games pinned yet/i)).toBeTruthy();
+  });
+
+  it("creates a new page from the header menu and switches to it", () => {
+    mockUseGamesContext.mockReturnValue(makeContext({ loading: false, playingGames: [] }));
+
+    render(<HomeScreen />);
+    expect(screen.getByText("0 games | Page 1 of 1")).toBeTruthy();
+
+    fireEvent.press(screen.getByTestId("home-page-menu-trigger"));
+    fireEvent.press(screen.getByTestId("home-page-create"));
+
+    expect(screen.getByText("0 games | Page 2 of 2")).toBeTruthy();
+  });
+
+  it("switches board view between pages from the header menu", () => {
+    mockUseGamesContext.mockReturnValue(
+      makeContext({
+        loading: false,
+        playingGames: [
+          {
+            id: "page-1-game",
+            title: "Page One Game",
+            status: "playing",
+            ticketType: "minimal",
+            board: { x: 0, y: 0, w: 1, h: 1, columns: 4 },
+            notes: [],
+          },
+          {
+            id: "page-2-game",
+            title: "Page Two Game",
+            status: "playing",
+            ticketType: "minimal",
+            board: { x: 0, y: 6, w: 1, h: 1, columns: 4 },
+            notes: [],
+          },
+        ],
+      })
+    );
+
+    render(<HomeScreen />);
+    expect(screen.getByTestId("playing-card-add-page-1-game")).toBeTruthy();
+    expect(screen.queryByTestId("playing-card-add-page-2-game")).toBeNull();
+
+    fireEvent.press(screen.getByTestId("home-page-menu-trigger"));
+    fireEvent.press(screen.getByTestId("home-page-option-2"));
+
+    expect(screen.queryByTestId("playing-card-add-page-1-game")).toBeNull();
+    expect(screen.getByTestId("playing-card-add-page-2-game")).toBeTruthy();
+    expect(screen.getByText("1 game | Page 2 of 2")).toBeTruthy();
+  });
+
+  it("captures horizontal swipes to navigate pages", async () => {
+    mockUseGamesContext.mockReturnValue(
+      makeContext({
+        loading: false,
+        playingGames: [
+          {
+            id: "swipe-nav-1",
+            title: "Swipe Nav One",
+            status: "playing",
+            ticketType: "minimal",
+            board: { x: 0, y: 0, w: 1, h: 1, columns: 4 },
+            notes: [],
+          },
+          {
+            id: "swipe-nav-2",
+            title: "Swipe Nav Two",
+            status: "playing",
+            ticketType: "minimal",
+            board: { x: 0, y: 6, w: 1, h: 1, columns: 4 },
+            notes: [],
+          },
+        ],
+      })
+    );
+
+    render(<HomeScreen />);
+    expect(screen.getByText("1 game | Page 1 of 2")).toBeTruthy();
+
+    expect(
+      capturedPanResponderConfig.onMoveShouldSetPanResponderCapture({}, { dx: -120, dy: 20 })
+    ).toBe(true);
+
+    await act(async () => {
+      capturedPanResponderConfig.onPanResponderRelease({}, { dx: -120, vx: -0.7 });
+    });
+
+    await waitFor(() => expect(screen.getByText("1 game | Page 2 of 2")).toBeTruthy());
+  });
+
+  it("does not capture vertical gestures for page navigation", () => {
+    mockUseGamesContext.mockReturnValue(
+      makeContext({
+        loading: false,
+        playingGames: [
+          {
+            id: "vertical-nav-1",
+            title: "Vertical Nav One",
+            status: "playing",
+            ticketType: "minimal",
+            board: { x: 0, y: 0, w: 1, h: 1, columns: 4 },
+            notes: [],
+          },
+          {
+            id: "vertical-nav-2",
+            title: "Vertical Nav Two",
+            status: "playing",
+            ticketType: "minimal",
+            board: { x: 0, y: 6, w: 1, h: 1, columns: 4 },
+            notes: [],
+          },
+        ],
+      })
+    );
+
+    render(<HomeScreen />);
+    expect(
+      capturedPanResponderConfig.onMoveShouldSetPanResponderCapture({}, { dx: 18, dy: 110 })
+    ).toBe(false);
+    expect(screen.getByText("1 game | Page 1 of 2")).toBeTruthy();
   });
 
   it("opens journal overlay from card press and saves note", async () => {
@@ -267,6 +399,7 @@ describe("[dragdrop-regression] HomeScreen", () => {
         4
       )
     );
+    expect(Haptics.selectionAsync).toHaveBeenCalled();
 
     await act(async () => {
       capturedPanResponderConfig.onPanResponderTerminate();
@@ -329,6 +462,226 @@ describe("[dragdrop-regression] HomeScreen", () => {
     }
   });
 
+  it("applies active page row offset when dropping on page two", async () => {
+    const windowSpy = jest
+      .spyOn(ReactNative, "useWindowDimensions")
+      .mockReturnValue({ width: 232, height: 900, scale: 2, fontScale: 1 });
+
+    try {
+      mockUseGamesContext.mockReturnValue(
+        makeContext({
+          loading: false,
+          playingGames: [
+            {
+              id: "page-two-drag",
+              title: "Page Two Drag",
+              status: "playing",
+              ticketType: "minimal",
+              board: { x: 0, y: 6, w: 1, h: 1, columns: 4 },
+              notes: [],
+            },
+          ],
+        })
+      );
+
+      render(<HomeScreen />);
+      fireEvent.press(screen.getByTestId("home-page-menu-trigger"));
+      fireEvent.press(screen.getByTestId("home-page-option-2"));
+
+      fireEvent(screen.getByTestId("playing-card-add-page-two-drag"), "longPress", {
+        nativeEvent: { locationX: 8, locationY: 8 },
+      });
+
+      await waitFor(() =>
+        expect(capturedPanResponderConfig.onMoveShouldSetPanResponderCapture()).toBe(true)
+      );
+
+      await act(async () => {
+        capturedPanResponderConfig.onPanResponderRelease();
+      });
+
+      await waitFor(() => expect(mockMoveGameToBoardTarget).toHaveBeenCalled());
+      const [, target] =
+        mockMoveGameToBoardTarget.mock.calls[mockMoveGameToBoardTarget.mock.calls.length - 1];
+      expect(target.y).toBeGreaterThanOrEqual(6);
+    } finally {
+      windowSpy.mockRestore();
+    }
+  });
+
+  it("switches to the next page while dragging near the right edge", async () => {
+    const windowSpy = jest
+      .spyOn(ReactNative, "useWindowDimensions")
+      .mockReturnValue({ width: 232, height: 900, scale: 2, fontScale: 1 });
+
+    try {
+      mockUseGamesContext.mockReturnValue(
+        makeContext({
+          loading: false,
+          playingGames: [
+            {
+              id: "cross-page-drag",
+              title: "Cross Page Drag",
+              status: "playing",
+              ticketType: "minimal",
+              board: { x: 0, y: 0, w: 1, h: 1, columns: 4 },
+              notes: [],
+            },
+            {
+              id: "cross-page-target",
+              title: "Cross Page Target",
+              status: "playing",
+              ticketType: "minimal",
+              board: { x: 1, y: 6, w: 1, h: 1, columns: 4 },
+              notes: [],
+            },
+          ],
+        })
+      );
+
+      render(<HomeScreen />);
+      expect(screen.getByText("1 game | Page 1 of 2")).toBeTruthy();
+
+      fireEvent(screen.getByTestId("playing-card-add-cross-page-drag"), "longPress", {
+        nativeEvent: { locationX: 8, locationY: 8 },
+      });
+
+      await waitFor(() =>
+        expect(capturedPanResponderConfig.onMoveShouldSetPanResponderCapture()).toBe(true)
+      );
+
+      await act(async () => {
+        capturedPanResponderConfig.onPanResponderMove({}, { moveX: 740, moveY: 110 });
+      });
+
+      await waitFor(() => expect(screen.getByText("1 game | Page 2 of 2")).toBeTruthy());
+
+      await act(async () => {
+        capturedPanResponderConfig.onPanResponderRelease();
+      });
+
+      await waitFor(() => expect(mockMoveGameToBoardTarget).toHaveBeenCalled());
+      const [, target] =
+        mockMoveGameToBoardTarget.mock.calls[mockMoveGameToBoardTarget.mock.calls.length - 1];
+      expect(target.y).toBeGreaterThanOrEqual(6);
+    } finally {
+      windowSpy.mockRestore();
+    }
+  });
+
+  it("switches to the previous page while dragging near the left edge", async () => {
+    const windowSpy = jest
+      .spyOn(ReactNative, "useWindowDimensions")
+      .mockReturnValue({ width: 232, height: 900, scale: 2, fontScale: 1 });
+
+    try {
+      mockUseGamesContext.mockReturnValue(
+        makeContext({
+          loading: false,
+          playingGames: [
+            {
+              id: "left-edge-page-1",
+              title: "Left Edge Page One",
+              status: "playing",
+              ticketType: "minimal",
+              board: { x: 0, y: 0, w: 1, h: 1, columns: 4 },
+              notes: [],
+            },
+            {
+              id: "left-edge-page-2",
+              title: "Left Edge Page Two",
+              status: "playing",
+              ticketType: "minimal",
+              board: { x: 0, y: 6, w: 1, h: 1, columns: 4 },
+              notes: [],
+            },
+          ],
+        })
+      );
+
+      render(<HomeScreen />);
+      fireEvent.press(screen.getByTestId("home-page-menu-trigger"));
+      fireEvent.press(screen.getByTestId("home-page-option-2"));
+      expect(screen.getByText("1 game | Page 2 of 2")).toBeTruthy();
+
+      fireEvent(screen.getByTestId("playing-card-add-left-edge-page-2"), "longPress", {
+        nativeEvent: { locationX: 8, locationY: 8 },
+      });
+
+      await waitFor(() =>
+        expect(capturedPanResponderConfig.onMoveShouldSetPanResponderCapture()).toBe(true)
+      );
+
+      await act(async () => {
+        capturedPanResponderConfig.onPanResponderMove({}, { moveX: 4, moveY: 110 });
+      });
+
+      await waitFor(() => expect(screen.getByText("1 game | Page 1 of 2")).toBeTruthy());
+    } finally {
+      windowSpy.mockRestore();
+    }
+  });
+
+  it("shows conflict cells after right-to-left page switch when hovering an occupied slot", async () => {
+    const windowSpy = jest
+      .spyOn(ReactNative, "useWindowDimensions")
+      .mockReturnValue({ width: 232, height: 900, scale: 2, fontScale: 1 });
+
+    try {
+      mockUseGamesContext.mockReturnValue(
+        makeContext({
+          loading: false,
+          playingGames: [
+            {
+              id: "rtl-blocker",
+              title: "RTL Blocker",
+              status: "playing",
+              ticketType: "minimal",
+              board: { x: 0, y: 0, w: 1, h: 1, columns: 4 },
+              notes: [],
+            },
+            {
+              id: "rtl-dragged-page-2",
+              title: "RTL Dragged Page Two",
+              status: "playing",
+              ticketType: "minimal",
+              board: { x: 0, y: 6, w: 1, h: 1, columns: 4 },
+              notes: [],
+            },
+          ],
+        })
+      );
+
+      render(<HomeScreen />);
+      fireEvent.press(screen.getByTestId("home-page-menu-trigger"));
+      fireEvent.press(screen.getByTestId("home-page-option-2"));
+      expect(screen.getByText("1 game | Page 2 of 2")).toBeTruthy();
+
+      fireEvent(screen.getByTestId("playing-card-add-rtl-dragged-page-2"), "longPress", {
+        nativeEvent: { locationX: 8, locationY: 8 },
+      });
+
+      await waitFor(() =>
+        expect(capturedPanResponderConfig.onMoveShouldSetPanResponderCapture()).toBe(true)
+      );
+
+      // Move to left edge to switch back to page 1.
+      await act(async () => {
+        capturedPanResponderConfig.onPanResponderMove({}, { moveX: 4, moveY: 110 });
+      });
+      await waitFor(() => expect(screen.getByText("1 game | Page 1 of 2")).toBeTruthy());
+
+      // Hover over blocker (x=0, y=0) and verify conflict highlight appears.
+      await act(async () => {
+        capturedPanResponderConfig.onPanResponderMove({}, { moveX: 18, moveY: 18 });
+      });
+
+      await waitFor(() => expect(screen.getByTestId("drop-target-conflict-0-0")).toBeTruthy());
+    } finally {
+      windowSpy.mockRestore();
+    }
+  });
+
   it("morphs drop target span near a column boundary for 1x1 cards", async () => {
     const windowSpy = jest
       .spyOn(ReactNative, "useWindowDimensions")
@@ -371,6 +724,121 @@ describe("[dragdrop-regression] HomeScreen", () => {
           expect.objectContaining({ w: 2, h: 1 }),
           4
         )
+      );
+    } finally {
+      windowSpy.mockRestore();
+    }
+  });
+
+  it("caps drag drop target within the 6-row home grid", async () => {
+    const windowSpy = jest
+      .spyOn(ReactNative, "useWindowDimensions")
+      .mockReturnValue({ width: 232, height: 900, scale: 2, fontScale: 1 });
+
+    try {
+      mockUseGamesContext.mockReturnValue(
+        makeContext({
+          loading: false,
+          playingGames: [
+            {
+              id: "drag-cap",
+              title: "Drag Cap",
+              status: "playing",
+              ticketType: "minimal",
+              board: { x: 0, y: 0, w: 1, h: 1, columns: 4 },
+              notes: [],
+            },
+          ],
+        })
+      );
+
+      render(<HomeScreen />);
+      fireEvent(screen.getByTestId("playing-card-add-drag-cap"), "longPress", {
+        nativeEvent: { locationX: 8, locationY: 8 },
+      });
+
+      await waitFor(() =>
+        expect(capturedPanResponderConfig.onMoveShouldSetPanResponderCapture()).toBe(true)
+      );
+
+      await act(async () => {
+        capturedPanResponderConfig.onPanResponderMove({}, { moveX: 90, moveY: 9999 });
+        capturedPanResponderConfig.onPanResponderRelease();
+      });
+
+      await waitFor(() => expect(mockMoveGameToBoardTarget).toHaveBeenCalled());
+      const [, target] =
+        mockMoveGameToBoardTarget.mock.calls[mockMoveGameToBoardTarget.mock.calls.length - 1];
+      expect(target.y).toBeLessThanOrEqual(5);
+      expect(target.y + target.h).toBeLessThanOrEqual(6);
+    } finally {
+      windowSpy.mockRestore();
+    }
+  });
+
+  it("allows re-grabbing a card after dropping it on the bottom row", async () => {
+    const windowSpy = jest
+      .spyOn(ReactNative, "useWindowDimensions")
+      .mockReturnValue({ width: 232, height: 900, scale: 2, fontScale: 1 });
+
+    try {
+      const game = {
+        id: "drag-bottom-regrab",
+        title: "Bottom Regrab",
+        status: "playing" as const,
+        ticketType: "minimal" as const,
+        board: { x: 0, y: 0, w: 1, h: 1, columns: 4 },
+        notes: [],
+      };
+
+      mockUseGamesContext.mockReturnValue(
+        makeContext({
+          loading: false,
+          playingGames: [game],
+        })
+      );
+
+      const { rerender } = render(<HomeScreen />);
+      fireEvent(screen.getByTestId("playing-card-add-drag-bottom-regrab"), "longPress", {
+        nativeEvent: { locationX: 8, locationY: 8 },
+      });
+
+      await waitFor(() =>
+        expect(capturedPanResponderConfig.onMoveShouldSetPanResponderCapture()).toBe(true)
+      );
+
+      await act(async () => {
+        capturedPanResponderConfig.onPanResponderMove({}, { moveX: 90, moveY: 9999 });
+        capturedPanResponderConfig.onPanResponderRelease();
+      });
+
+      await waitFor(() => expect(mockMoveGameToBoardTarget).toHaveBeenCalled());
+      const [, target] =
+        mockMoveGameToBoardTarget.mock.calls[mockMoveGameToBoardTarget.mock.calls.length - 1];
+      expect(target.y).toBeLessThanOrEqual(5);
+      expect(target.y + target.h).toBeLessThanOrEqual(6);
+
+      mockUseGamesContext.mockReturnValue(
+        makeContext({
+          loading: false,
+          playingGames: [
+            {
+              ...game,
+              board: { x: target.x, y: target.y, w: target.w, h: target.h, columns: 4 },
+            },
+          ],
+        })
+      );
+      rerender(<HomeScreen />);
+
+      expect(capturedPanResponderConfig.onMoveShouldSetPanResponderCapture()).toBe(false);
+
+      fireEvent(screen.getByTestId("playing-card-add-drag-bottom-regrab"), "longPress", {
+        nativeEvent: { locationX: 8, locationY: 8 },
+      });
+
+      await waitFor(() =>
+        expect(capturedPanResponderConfig.onMoveShouldSetPanResponderCapture()).toBe(true)
       );
     } finally {
       windowSpy.mockRestore();

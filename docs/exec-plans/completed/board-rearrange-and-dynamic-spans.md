@@ -34,11 +34,9 @@ legible, and safe for production changes.
 - [x] Add CI mutation gate with timeout budget and artifact upload
 - [x] Retire unused insertion/reflow helper path (`findBestInsertion`, `previewInsertionAtIndex`) and associated tests
 
-### Deferred Follow-Ups (Out of Completed Scope)
-
-- [ ] Add drag polish: haptic tick when drop target cell changes
-- [ ] Add drag polish: auto-scroll when dragging near top/bottom edges
-- [ ] Add drag polish: subtle "jiggle mode" while dragging
+- [x] Add drag polish: haptic tick when drop target cell changes
+- [x] Add drag polish: auto-scroll when dragging near top/bottom edges
+- [x] Add drag polish: subtle "jiggle mode" while dragging
 
 ## Decisions
 
@@ -50,6 +48,7 @@ legible, and safe for production changes.
 | 2026-02-21 | Reject occupied drops instead of swap fallback | Simpler mental model and lower accidental rearrangement risk |
 | 2026-02-21 | Show cell-level conflict indicators instead of broad invalid target tint | More actionable error feedback for mixed-span drops |
 | 2026-02-21 | Remove legacy insertion helper functions and tests | Prevent accidental reintroduction of retired behavior during refactors |
+| 2026-02-21 | Add drag polish (haptic tick, edge auto-scroll, jiggle mode) without changing strict commit policy | Improve feel and wayfinding while preserving no-overlap safety contract |
 
 ## Why We Pivoted From Reflow
 
@@ -101,6 +100,5 @@ pnpm test --watchman=false --runTestsByPath \
 
 ## Next Actions
 
-1. Land optional drag polish tasks without changing commit contract.
-2. Keep docs/tests/mutation scope aligned whenever behavior changes.
-3. Open a new plan if product intentionally revisits swap/reflow behavior.
+1. Keep docs/tests/mutation scope aligned whenever behavior changes.
+2. Open a new plan if product intentionally revisits swap/reflow behavior.

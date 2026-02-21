@@ -19,6 +19,7 @@ export function TabBar({ state, navigation }: BottomTabBarProps) {
 
   return (
     <View
+      pointerEvents="box-none"
       style={{
         position: "absolute",
         bottom: 0,
@@ -29,6 +30,7 @@ export function TabBar({ state, navigation }: BottomTabBarProps) {
       <TabBarBackground width={width} />
 
       <View
+        pointerEvents="box-none"
         style={{
           flex: 1,
           flexDirection: "row",

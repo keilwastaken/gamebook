@@ -47,8 +47,13 @@ These suites protect the board interaction model currently in production.
 - `/Users/keilaloia/gamebook/app/(tabs)/__tests__/index.test.tsx`
   - validates drag gesture wiring (`PanResponder`)
   - validates dynamic hover span behavior
+  - validates haptic tick behavior on target transitions
   - validates conflict-cell highlighting behavior
   - validates drop payload dispatched to store layer
+
+- `/Users/keilaloia/gamebook/components/board/__tests__/board-viewport.test.tsx`
+  - validates viewport scroll metric callbacks
+  - validates imperative `scrollTo` handle used by drag auto-scroll
 
 - `/Users/keilaloia/gamebook/lib/__tests__/game-store.test.ts`
   - validates accepted move persistence
@@ -72,6 +77,8 @@ pnpm test:dragdrop:regression
 - `/Users/keilaloia/gamebook/lib/board/__tests__/engine.test.ts`
   - validates exact conflict-cell detection
   - validates strict no-overlap commit policy in isolation
+- `/Users/keilaloia/gamebook/lib/board/__tests__/conflict-scope.test.ts`
+  - validates cross-page drag conflict-scope normalization behavior
 
 This suite is highly recommended when touching board engine logic even though it
 is not currently part of `test:dragdrop:regression`.

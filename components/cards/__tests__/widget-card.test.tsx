@@ -18,9 +18,11 @@ const BASE_GAME = {
 };
 
 function hasRotateStyle(node: { props: { style?: unknown } }, deg: number): boolean {
-  const style = StyleSheet.flatten(node.props.style);
+  const style = StyleSheet.flatten(node.props.style) as
+    | { transform?: Array<{ rotate?: string }> }
+    | undefined;
   if (!style || !Array.isArray(style.transform)) return false;
-  return style.transform.some((entry) => entry.rotate === `${deg}deg`);
+  return style.transform.some((entry: { rotate?: string }) => entry.rotate === `${deg}deg`);
 }
 
 describe("WidgetCard", () => {

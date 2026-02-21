@@ -1,4 +1,7 @@
 export {
+  getDragConflictScopeGames,
+} from "./conflict-scope";
+export {
   chooseNearestAllowedSpan,
   commitMoveStrictNoOverlap,
   getDropTargetConflictCells,

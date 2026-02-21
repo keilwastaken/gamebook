@@ -12,13 +12,17 @@ jest.mock("@/utils/random-rotation", () => ({
 const mockRandomRotation = randomRotation as jest.MockedFunction<typeof randomRotation>;
 
 function hasRotateStyle(node: { props: { style?: unknown } }, deg: number): boolean {
-  const style = StyleSheet.flatten(node.props.style);
+  const style = StyleSheet.flatten(node.props.style) as
+    | { transform?: Array<{ rotate?: string }> }
+    | undefined;
   if (!style || !Array.isArray(style.transform)) return false;
-  return style.transform.some((entry) => entry.rotate === `${deg}deg`);
+  return style.transform.some((entry: { rotate?: string }) => entry.rotate === `${deg}deg`);
 }
 
 function hasPinStyle(node: { props: { style?: unknown } }): boolean {
-  const style = StyleSheet.flatten(node.props.style);
+  const style = StyleSheet.flatten(node.props.style) as
+    | { width?: number; height?: number; borderRadius?: number }
+    | undefined;
   return (
     style?.width === 12 &&
     style?.height === 12 &&

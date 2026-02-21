@@ -1,5 +1,5 @@
 import { useRef } from "react";
-import { Animated, Pressable } from "react-native";
+import { Animated, Pressable, View } from "react-native";
 
 import { TabConfig } from "./constants";
 
@@ -45,39 +45,50 @@ export function TabButton({
   const size = isFocused ? iconSize * 1.1 : iconSize;
 
   return (
-    <Pressable
-      testID={`tab-${tab.name}`}
-      onPress={onPress}
-      onPressIn={handlePressIn}
-      onPressOut={handlePressOut}
+    <View
+      pointerEvents="box-none"
       style={{
         flex: 1,
         alignItems: "center",
         justifyContent: "center",
       }}
     >
-      <Animated.View
-        style={[
-          {
-            alignItems: "center",
-            justifyContent: "center",
-            transform: [{ scale: scaleAnim }],
-          },
-          isFocused && {
-            shadowColor: activeIconShadowColor,
-            shadowOffset: { width: 0, height: 6 },
-            shadowOpacity: 0.4,
-            shadowRadius: 6,
-            elevation: 10,
-          },
-        ]}
+      <Pressable
+        testID={`tab-${tab.name}`}
+        onPress={onPress}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        hitSlop={10}
+        style={{
+          width: iconSize * 1.9,
+          height: iconSize * 1.9,
+          alignItems: "center",
+          justifyContent: "center",
+        }}
       >
-        <tab.icon
-          size={size}
-          color={isFocused ? activeColor : inactiveColor}
-          weight="fill"
-        />
-      </Animated.View>
-    </Pressable>
+        <Animated.View
+          style={[
+            {
+              alignItems: "center",
+              justifyContent: "center",
+              transform: [{ scale: scaleAnim }],
+            },
+            isFocused && {
+              shadowColor: activeIconShadowColor,
+              shadowOffset: { width: 0, height: 6 },
+              shadowOpacity: 0.4,
+              shadowRadius: 6,
+              elevation: 10,
+            },
+          ]}
+        >
+          <tab.icon
+            size={size}
+            color={isFocused ? activeColor : inactiveColor}
+            weight="fill"
+          />
+        </Animated.View>
+      </Pressable>
+    </View>
   );
 }

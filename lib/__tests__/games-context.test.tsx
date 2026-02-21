@@ -26,6 +26,8 @@ describe("games-context", () => {
       games: [],
       playingGames: [],
       loading: false,
+      currentHomePage: 0,
+      setCurrentHomePage: jest.fn(),
       saveNote: jest.fn(),
       addGameWithInitialNote: jest.fn(),
       saveBoardPlacement: jest.fn(),

@@ -59,6 +59,36 @@ describe("board engine", () => {
     expect(conflicts).toEqual([{ x: 2, y: 0 }]);
   });
 
+  it("reports conflicts for occupied lower rows (down-grid boundary)", () => {
+    const games: Game[] = [
+      {
+        id: "dragged",
+        title: "Dragged",
+        status: "playing",
+        ticketType: "minimal",
+        notes: [],
+        board: { x: 0, y: 0, w: 1, h: 1, columns: DEFAULT_BOARD_COLUMNS },
+      },
+      {
+        id: "lower-row-blocker",
+        title: "Lower Row Blocker",
+        status: "playing",
+        ticketType: "minimal",
+        notes: [],
+        board: { x: 1, y: 4, w: 1, h: 1, columns: DEFAULT_BOARD_COLUMNS },
+      },
+    ];
+
+    const conflicts = getDropTargetConflictCells(
+      games,
+      "dragged",
+      { x: 1, y: 4, w: 1, h: 1 },
+      DEFAULT_BOARD_COLUMNS
+    );
+
+    expect(conflicts).toEqual([{ x: 1, y: 4 }]);
+  });
+
   it("commits only when target is empty and keeps neighbors static", () => {
     const next = commitMoveStrictNoOverlap(
       BASE_GAMES,

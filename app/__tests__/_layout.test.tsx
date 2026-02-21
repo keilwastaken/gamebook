@@ -15,29 +15,43 @@ jest.mock("@react-navigation/native", () => {
   const DefaultTheme = { colors: { background: "#fff" } };
   const DarkTheme = { colors: { background: "#000" } };
 
+  function ThemeProviderMock({
+    value,
+    children,
+  }: {
+    value: unknown;
+    children: React.ReactNode;
+  }) {
+    mockThemeProvider(value);
+    return <View testID="theme-provider">{children}</View>;
+  }
+
   return {
     DefaultTheme,
     DarkTheme,
-    ThemeProvider: ({ value, children }: { value: unknown; children: React.ReactNode }) => {
-      mockThemeProvider(value);
-      return <View testID="theme-provider">{children}</View>;
-    },
+    ThemeProvider: ThemeProviderMock,
   };
 });
 
 jest.mock("expo-linear-gradient", () => {
   const React = require("react");
   const { View } = require("react-native");
+  function LinearGradientMock() {
+    return <View testID="linear-gradient" />;
+  }
   return {
-    LinearGradient: () => <View testID="linear-gradient" />,
+    LinearGradient: LinearGradientMock,
   };
 });
 
 jest.mock("expo-status-bar", () => {
   const React = require("react");
   const { View } = require("react-native");
+  function StatusBarMock() {
+    return <View testID="status-bar" />;
+  }
   return {
-    StatusBar: () => <View testID="status-bar" />,
+    StatusBar: StatusBarMock,
   };
 });
 
@@ -45,13 +59,15 @@ jest.mock("expo-router", () => {
   const React = require("react");
   const { View } = require("react-native");
 
-  const Stack = ({ children }: { children: React.ReactNode }) => (
-    <View testID="stack">{children}</View>
-  );
-  Stack.Screen = ({ name }: { name: string }) => {
+  function Stack({ children }: { children: React.ReactNode }) {
+    return <View testID="stack">{children}</View>;
+  }
+  function StackScreen({ name }: { name: string }) {
     mockStackScreen(name);
     return <View testID={`stack-screen-${name}`} />;
-  };
+  }
+  StackScreen.displayName = "StackScreenMock";
+  Stack.Screen = StackScreen;
 
   return { Stack };
 });

@@ -18,6 +18,7 @@ Current product contract is **strict no-overlap placement**:
 2. Dragging onto any occupied cell is rejected.
 3. No auto-push, no insert+reflow, no implicit card swapping.
 4. Conflict feedback is per-cell (only blocked grid cells are marked).
+5. Home screen drag targeting/auto-scroll is capped to a fixed 4x6 board (6 rows).
 
 ## Why This Contract Exists
 
@@ -78,6 +79,7 @@ Responsibilities:
 ### Domain/Engine Boundary
 
 - `/Users/keilaloia/gamebook/lib/board/engine.ts`
+- `/Users/keilaloia/gamebook/lib/board/conflict-scope.ts`
 - `/Users/keilaloia/gamebook/lib/board/metrics.ts`
 - `/Users/keilaloia/gamebook/lib/board-layout.ts`
 
@@ -86,6 +88,7 @@ Responsibilities:
 - span constraints and allowed presets
 - placement normalization and clamping
 - overlap/conflict detection
+- cross-page conflict-scope normalization for destination-page hover
 - strict commit policy (accept empty, reject overlap)
 - board geometry metrics
 
@@ -116,7 +119,12 @@ Responsibilities:
 4. Enumerate candidate slots and choose nearest center.
 5. Apply hysteresis to avoid jitter/flicker near boundaries.
 6. Compute conflicts via `getDropTargetConflictCells`.
+   - During cross-page drag, normalize conflict scope with
+     `getDragConflictScopeGames` so destination-page overlap is still detected.
 7. Update animated target indicator + per-cell conflict markers.
+8. Trigger a haptic selection tick when the resolved slot key changes.
+9. Apply edge auto-scroll when pointer nears top/bottom viewport edges.
+10. Auto-scroll can use bottom content padding so row 6 cards can be re-grabbed above the tab bar.
 
 ### Drop Commit
 
@@ -185,6 +193,8 @@ During drag:
 - Neutral grid cells are always rendered as board scaffolding.
 - Active target rectangle animates with spring motion.
 - Occupied overlap cells render as explicit conflict cells.
+- Non-dragged cards run a subtle jiggle animation while drag is active.
+- Dropping target-cell transitions emit light haptic ticks for wayfinding.
 
 This keeps feedback local and actionable: users see exactly which cells block a
 commit.
@@ -209,6 +219,7 @@ These tests are the release guardrail for drag/drop behavior.
 - `/Users/keilaloia/gamebook/app/(tabs)/__tests__/index.test.tsx`
   - pan responder drag flow
   - dynamic span morph behavior
+  - haptic selection tick on target transitions
   - overlap cell highlighting contract
   - drop target payload passed to store
 

@@ -20,6 +20,7 @@ import { commitMoveStrictNoOverlap } from "./board/engine";
 import { decodeStoredGames } from "./game-storage-codec";
 
 const STORAGE_KEY = "@gamebook/games";
+const HOME_BOARD_PAGE_ROW_COUNT = 6;
 let clientIdSequence = 0;
 
 function createClientId(prefix: "game" | "note"): string {
@@ -142,9 +143,51 @@ async function persistGames(games: Game[]): Promise<void> {
   await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(games));
 }
 
+function overlaps(a: { x: number; y: number; w: number; h: number }, b: { x: number; y: number; w: number; h: number }): boolean {
+  return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+}
+
+function findFirstOpenSlot(
+  games: Game[],
+  span: { w: number; h: number },
+  columns: number,
+  startY: number,
+  endYExclusive: number
+): { x: number; y: number } | null {
+  const occupied = games
+    .filter((game) => game.board)
+    .map((game) => {
+      const board = game.board!;
+      const constrained = constrainSpanForCard(
+        game.ticketType,
+        { w: board.w, h: board.h },
+        columns
+      );
+      const maxX = Math.max(0, columns - constrained.w);
+      return {
+        x: Math.max(0, Math.min(board.x, maxX)),
+        y: Math.max(0, board.y),
+        w: constrained.w,
+        h: constrained.h,
+      };
+    });
+
+  const maxCandidateY = Math.max(startY, endYExclusive - span.h);
+  for (let y = startY; y <= maxCandidateY; y += 1) {
+    for (let x = 0; x <= columns - span.w; x += 1) {
+      const candidate = { x, y, w: span.w, h: span.h };
+      if (!occupied.some((cell) => overlaps(cell, candidate))) {
+        return { x, y };
+      }
+    }
+  }
+  return null;
+}
+
 export function useGames() {
   const [games, setGames] = useState<Game[]>([]);
   const [loading, setLoading] = useState(true);
+  const [currentHomePage, setCurrentHomePageState] = useState(0);
 
   const setGamesWithPersistence = useCallback(
     (update: (prev: Game[]) => Game[]) => {
@@ -167,6 +210,10 @@ export function useGames() {
   }, []);
 
   const playingGames = games.filter((g) => g.status === "playing");
+  const setCurrentHomePage = useCallback((page: number) => {
+    const safePage = Number.isFinite(page) ? Math.max(0, Math.floor(page)) : 0;
+    setCurrentHomePageState(safePage);
+  }, []);
 
   const saveNote = useCallback(
     async (
@@ -202,6 +249,7 @@ export function useGames() {
       ticketType?: Game["ticketType"];
       mountStyle?: Game["mountStyle"];
       postcardSide?: Game["postcardSide"];
+      boardPage?: number;
     }): Promise<Game> => {
       const ts = Date.now();
       const noteId = createClientId("note");
@@ -224,6 +272,56 @@ export function useGames() {
       };
       let createdGame: Game = newGame;
       setGamesWithPersistence((prev) => {
+        if (input.boardPage !== undefined) {
+          const targetPage = Math.max(0, Math.floor(input.boardPage));
+          const span = constrainSpanForCard(
+            newGame.ticketType,
+            getCardSpan(newGame.ticketType),
+            DEFAULT_BOARD_COLUMNS
+          );
+          const pageStartY = targetPage * HOME_BOARD_PAGE_ROW_COUNT;
+          const pageEndExclusive = pageStartY + HOME_BOARD_PAGE_ROW_COUNT;
+          const pageSlot = findFirstOpenSlot(
+            prev,
+            span,
+            DEFAULT_BOARD_COLUMNS,
+            pageStartY,
+            pageEndExclusive
+          );
+
+          const maxBottom = prev.reduce((max, game) => {
+            if (!game.board) return max;
+            return Math.max(max, game.board.y + game.board.h);
+          }, pageEndExclusive);
+          const fallbackEndExclusive = Math.max(
+            maxBottom + HOME_BOARD_PAGE_ROW_COUNT * 2,
+            pageEndExclusive + HOME_BOARD_PAGE_ROW_COUNT * 2
+          );
+          const fallbackSlot =
+            pageSlot ??
+            findFirstOpenSlot(
+              prev,
+              span,
+              DEFAULT_BOARD_COLUMNS,
+              pageEndExclusive,
+              fallbackEndExclusive
+            );
+
+          if (fallbackSlot) {
+            createdGame = {
+              ...newGame,
+              board: {
+                x: fallbackSlot.x,
+                y: fallbackSlot.y,
+                w: span.w,
+                h: span.h,
+                columns: DEFAULT_BOARD_COLUMNS,
+              },
+            };
+            return [createdGame, ...prev];
+          }
+        }
+
         const next = applyBoardLayout(
           [newGame, ...prev],
           DEFAULT_BOARD_COLUMNS
@@ -362,6 +460,8 @@ export function useGames() {
     games,
     playingGames,
     loading,
+    currentHomePage,
+    setCurrentHomePage,
     saveNote,
     addGameWithInitialNote,
     saveBoardPlacement,

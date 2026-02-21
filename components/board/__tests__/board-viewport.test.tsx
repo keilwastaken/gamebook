@@ -1,8 +1,10 @@
 import React from "react";
-import { Text } from "react-native";
+import { StyleSheet, Text } from "react-native";
 import { render, screen } from "@testing-library/react-native";
+import { SafeAreaInsetsContext } from "react-native-safe-area-context";
 
 import { BoardViewport, type BoardViewportHandle } from "../board-viewport";
+import { BOARD_TOP_PADDING, getBoardScrollBottomPadding } from "@/lib/board/metrics";
 
 describe("BoardViewport", () => {
   it("renders without a SafeAreaProvider boundary", () => {
@@ -45,5 +47,20 @@ describe("BoardViewport", () => {
     expect(onScrollOffsetChange).toHaveBeenCalledWith(120);
     expect(onContentHeightChange).toHaveBeenCalledWith(1200);
     expect(typeof ref.current?.scrollTo).toBe("function");
+  });
+
+  it("adds safe-area insets to top and bottom content padding", () => {
+    render(
+      <SafeAreaInsetsContext.Provider value={{ top: 44, right: 0, bottom: 34, left: 0 }}>
+        <BoardViewport testID="viewport" dragging={false} screenWidth={390}>
+          <Text>Board Content</Text>
+        </BoardViewport>
+      </SafeAreaInsetsContext.Provider>
+    );
+
+    const viewport = screen.getByTestId("viewport");
+    const contentStyle = StyleSheet.flatten(viewport.props.contentContainerStyle);
+    expect(contentStyle.paddingTop).toBe(BOARD_TOP_PADDING + 44);
+    expect(contentStyle.paddingBottom).toBe(getBoardScrollBottomPadding(390, 34));
   });
 });

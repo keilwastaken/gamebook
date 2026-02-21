@@ -118,6 +118,19 @@ describe("[dragdrop-regression] useGames", () => {
     expect(result.current.playingGames[0].title).toBe("Playing");
   });
 
+  it("tracks active home page for cross-tab actions", async () => {
+    mockGetItem.mockResolvedValue(JSON.stringify([]));
+
+    const { result } = renderHook(() => useGames());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.currentHomePage).toBe(0);
+    act(() => {
+      result.current.setCurrentHomePage(4);
+    });
+    expect(result.current.currentHomePage).toBe(4);
+  });
+
   it("saveNote persists a new note", async () => {
     const stored = [
       { id: "g1", title: "Game", status: "playing", notes: [] },
@@ -196,6 +209,25 @@ describe("[dragdrop-regression] useGames", () => {
     expect(added.ticketType).toBe(DEFAULT_TICKET_TYPE);
     expect(added.mountStyle).toBe(DEFAULT_CARD_MOUNT_STYLE);
     expect(added.postcardSide).toBe(DEFAULT_POSTCARD_SIDE);
+  });
+
+  it("addGameWithInitialNote places a game on the requested board page", async () => {
+    mockGetItem.mockResolvedValue(JSON.stringify([]));
+
+    const { result } = renderHook(() => useGames());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => {
+      await result.current.addGameWithInitialNote!({
+        title: "Page Five",
+        whereLeftOff: "Created from page five",
+        boardPage: 4,
+      });
+    });
+
+    const created = result.current.games.find((game) => game.title === "Page Five");
+    expect(created?.board?.y).toBeGreaterThanOrEqual(24);
+    expect(created?.board?.y).toBeLessThanOrEqual(29);
   });
 
   it("generates unique IDs even when Date.now returns same value", async () => {

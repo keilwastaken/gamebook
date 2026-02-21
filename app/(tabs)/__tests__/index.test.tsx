@@ -73,6 +73,8 @@ function makeContext(overrides: Partial<ReturnType<typeof useGamesContext>> = {}
   return {
     playingGames: [],
     loading: false,
+    currentHomePage: 0,
+    setCurrentHomePage: jest.fn(),
     saveNote: mockSaveNote,
     moveGameToBoardTarget: mockMoveGameToBoardTarget,
     games: [],
@@ -115,6 +117,55 @@ describe("[dragdrop-regression] HomeScreen", () => {
     mockUseGamesContext.mockReturnValue(makeContext({ loading: false, playingGames: [] }));
     render(<HomeScreen />);
     expect(screen.getByText(/No games pinned yet/i)).toBeTruthy();
+  });
+
+  it("creates a new page from the header menu and switches to it", () => {
+    mockUseGamesContext.mockReturnValue(makeContext({ loading: false, playingGames: [] }));
+
+    render(<HomeScreen />);
+    expect(screen.getByText("0 games | Page 1 of 1")).toBeTruthy();
+
+    fireEvent.press(screen.getByTestId("home-page-menu-trigger"));
+    fireEvent.press(screen.getByTestId("home-page-create"));
+
+    expect(screen.getByText("0 games | Page 2 of 2")).toBeTruthy();
+  });
+
+  it("switches board view between pages from the header menu", () => {
+    mockUseGamesContext.mockReturnValue(
+      makeContext({
+        loading: false,
+        playingGames: [
+          {
+            id: "page-1-game",
+            title: "Page One Game",
+            status: "playing",
+            ticketType: "minimal",
+            board: { x: 0, y: 0, w: 1, h: 1, columns: 4 },
+            notes: [],
+          },
+          {
+            id: "page-2-game",
+            title: "Page Two Game",
+            status: "playing",
+            ticketType: "minimal",
+            board: { x: 0, y: 6, w: 1, h: 1, columns: 4 },
+            notes: [],
+          },
+        ],
+      })
+    );
+
+    render(<HomeScreen />);
+    expect(screen.getByTestId("playing-card-add-page-1-game")).toBeTruthy();
+    expect(screen.queryByTestId("playing-card-add-page-2-game")).toBeNull();
+
+    fireEvent.press(screen.getByTestId("home-page-menu-trigger"));
+    fireEvent.press(screen.getByTestId("home-page-option-2"));
+
+    expect(screen.queryByTestId("playing-card-add-page-1-game")).toBeNull();
+    expect(screen.getByTestId("playing-card-add-page-2-game")).toBeTruthy();
+    expect(screen.getByText("1 game | Page 2 of 2")).toBeTruthy();
   });
 
   it("opens journal overlay from card press and saves note", async () => {
@@ -335,6 +386,53 @@ describe("[dragdrop-regression] HomeScreen", () => {
       expect(columns).toBe(4);
       expect(target).toEqual(expect.objectContaining({ y: 0, w: 2, h: 1 }));
       expect(target.x).toBeGreaterThanOrEqual(1);
+    } finally {
+      windowSpy.mockRestore();
+    }
+  });
+
+  it("applies active page row offset when dropping on page two", async () => {
+    const windowSpy = jest
+      .spyOn(ReactNative, "useWindowDimensions")
+      .mockReturnValue({ width: 232, height: 900, scale: 2, fontScale: 1 });
+
+    try {
+      mockUseGamesContext.mockReturnValue(
+        makeContext({
+          loading: false,
+          playingGames: [
+            {
+              id: "page-two-drag",
+              title: "Page Two Drag",
+              status: "playing",
+              ticketType: "minimal",
+              board: { x: 0, y: 6, w: 1, h: 1, columns: 4 },
+              notes: [],
+            },
+          ],
+        })
+      );
+
+      render(<HomeScreen />);
+      fireEvent.press(screen.getByTestId("home-page-menu-trigger"));
+      fireEvent.press(screen.getByTestId("home-page-option-2"));
+
+      fireEvent(screen.getByTestId("playing-card-add-page-two-drag"), "longPress", {
+        nativeEvent: { locationX: 8, locationY: 8 },
+      });
+
+      await waitFor(() =>
+        expect(capturedPanResponderConfig.onMoveShouldSetPanResponderCapture()).toBe(true)
+      );
+
+      await act(async () => {
+        capturedPanResponderConfig.onPanResponderRelease();
+      });
+
+      await waitFor(() => expect(mockMoveGameToBoardTarget).toHaveBeenCalled());
+      const [, target] =
+        mockMoveGameToBoardTarget.mock.calls[mockMoveGameToBoardTarget.mock.calls.length - 1];
+      expect(target.y).toBeGreaterThanOrEqual(6);
     } finally {
       windowSpy.mockRestore();
     }

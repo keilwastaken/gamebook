@@ -10,6 +10,7 @@ import {
   View,
 } from "react-native";
 import * as Haptics from "expo-haptics";
+import { CaretDownIcon, CaretUpIcon } from "phosphor-react-native";
 
 import { BoardViewport, type BoardViewportHandle } from "@/components/board";
 import { palette } from "@/constants/palette";
@@ -58,6 +59,8 @@ export default function HomeScreen() {
   const {
     playingGames,
     loading,
+    currentHomePage,
+    setCurrentHomePage,
     saveNote,
     moveGameToBoardTarget,
   } = useGamesContext();
@@ -108,16 +111,50 @@ export default function HomeScreen() {
   const dropTargetHeight = useRef(new Animated.Value(0)).current;
   const { width, height } = useWindowDimensions();
   const boardColumns = HOME_BOARD_COLUMN_COUNT;
+  const [activePage, setActivePage] = useState(currentHomePage);
+  const [pageMenuOpen, setPageMenuOpen] = useState(false);
+  const [manualPageCount, setManualPageCount] = useState(1);
   const { cellWidth, rowHeight } = useMemo(
     () => getBoardMetrics(width, boardColumns),
     [width, boardColumns]
   );
-  const boardGames = useMemo(
+  const laidOutBoardGames = useMemo(
     () =>
       playingGames.some((game) => !game.board)
         ? applyBoardLayout(playingGames, boardColumns)
         : playingGames,
     [playingGames, boardColumns]
+  );
+  const pageCountFromGames = useMemo(
+    () =>
+      laidOutBoardGames.reduce((maxPages, game) => {
+        const row = Math.max(0, game.board?.y ?? 0);
+        const pageIndex = Math.floor(row / HOME_BOARD_ROW_COUNT);
+        return Math.max(maxPages, pageIndex + 1);
+      }, 1),
+    [laidOutBoardGames]
+  );
+  const pageCount = Math.max(pageCountFromGames, manualPageCount);
+  const pageRowOffset = activePage * HOME_BOARD_ROW_COUNT;
+  const boardGames = useMemo(
+    () =>
+      laidOutBoardGames
+        .filter((game) => {
+          if (!game.board) return activePage === 0;
+          const pageIndex = Math.floor(Math.max(0, game.board.y) / HOME_BOARD_ROW_COUNT);
+          return pageIndex === activePage;
+        })
+        .map((game) => {
+          if (!game.board) return game;
+          return {
+            ...game,
+            board: {
+              ...game.board,
+              y: Math.max(0, game.board.y - pageRowOffset),
+            },
+          };
+        }),
+    [laidOutBoardGames, activePage, pageRowOffset]
   );
   const boardHeight =
     HOME_BOARD_ROW_COUNT > 0
@@ -213,12 +250,32 @@ export default function HomeScreen() {
   }, []);
 
   useEffect(() => {
+    setActivePage((prev) => Math.max(0, Math.min(prev, pageCount - 1)));
+  }, [pageCount]);
+
+  useEffect(() => {
+    setCurrentHomePage(activePage);
+  }, [activePage, setCurrentHomePage]);
+
+  useEffect(() => {
     if (!activeGame) return;
-    const latest = boardGames.find((game) => game.id === activeGame.id);
+    const latest = laidOutBoardGames.find((game) => game.id === activeGame.id);
     if (latest && latest !== activeGame) {
       setActiveGame(latest);
     }
-  }, [boardGames, activeGame]);
+  }, [laidOutBoardGames, activeGame]);
+
+  const handleCreatePage = useCallback(() => {
+    const nextPageCount = pageCount + 1;
+    setManualPageCount(nextPageCount);
+    setActivePage(nextPageCount - 1);
+    setPageMenuOpen(false);
+  }, [pageCount]);
+
+  const handleSelectPage = useCallback((pageIndex: number) => {
+    setActivePage(pageIndex);
+    setPageMenuOpen(false);
+  }, []);
 
   const cancelAutoScroll = useCallback(() => {
     if (autoScrollFrameRef.current !== null) {
@@ -494,11 +551,19 @@ export default function HomeScreen() {
   const handleDrop = useCallback(async () => {
     const currentTarget = dropTargetRef.current;
     if (!draggingId || !currentTarget) return;
-    await moveGameToBoardTarget(draggingId, currentTarget, boardColumns);
+    await moveGameToBoardTarget(
+      draggingId,
+      {
+        ...currentTarget,
+        y: currentTarget.y + pageRowOffset,
+      },
+      boardColumns
+    );
     stopDragging();
   }, [
     draggingId,
     moveGameToBoardTarget,
+    pageRowOffset,
     boardColumns,
     stopDragging,
   ]);
@@ -571,11 +636,70 @@ export default function HomeScreen() {
         onContentHeightChange={handleBoardContentHeightChange}
       >
         <View style={styles.header}>
-          <Text style={styles.title}>Currently Playing</Text>
+          <View style={styles.headerTopRow}>
+            <View style={styles.headerTitleWrap}>
+              <Text style={styles.title}>Currently Playing</Text>
+              <View style={styles.pageMenuWrap}>
+                <Pressable
+                  testID="home-page-menu-trigger"
+                  accessibilityLabel="Board pages"
+                  accessibilityRole="button"
+                  onPress={() => setPageMenuOpen((open) => !open)}
+                  style={styles.pageMenuTrigger}
+                >
+                  {pageMenuOpen ? (
+                    <CaretUpIcon size={13} weight="bold" color={palette.warm[600]} />
+                  ) : (
+                    <CaretDownIcon size={13} weight="bold" color={palette.warm[600]} />
+                  )}
+                </Pressable>
+                {pageMenuOpen ? (
+                  <View style={styles.pageMenuDropdown}>
+                    {Array.from({ length: pageCount }).map((_, index) => {
+                      const selected = index === activePage;
+                      return (
+                        <Pressable
+                          key={`page-option-${index + 1}`}
+                          testID={`home-page-option-${index + 1}`}
+                          accessibilityRole="button"
+                          onPress={() => handleSelectPage(index)}
+                          style={[
+                            styles.pageMenuItem,
+                            selected ? styles.pageMenuItemSelected : null,
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.pageMenuItemText,
+                              selected ? styles.pageMenuItemTextSelected : null,
+                            ]}
+                          >
+                            Page {index + 1}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                    <View style={styles.pageMenuDivider} />
+                    <Pressable
+                      testID="home-page-create"
+                      accessibilityLabel="Add new board page"
+                      accessibilityRole="button"
+                      onPress={handleCreatePage}
+                      style={styles.pageMenuItem}
+                    >
+                      <Text style={styles.pageMenuCreateText}>+ New page</Text>
+                    </Pressable>
+                  </View>
+                ) : null}
+              </View>
+            </View>
+          </View>
           <Text style={styles.subtitle}>
             {loading
               ? "Loading..."
-              : `${boardGames.length} game${boardGames.length !== 1 ? "s" : ""}`}
+              : `${boardGames.length} game${boardGames.length !== 1 ? "s" : ""} | Page ${
+                  activePage + 1
+                } of ${pageCount}`}
           </Text>
         </View>
 
@@ -623,6 +747,7 @@ export default function HomeScreen() {
                     onLongPress={(event) => {
                       const locationX = event.nativeEvent.locationX;
                       const locationY = event.nativeEvent.locationY;
+                      setPageMenuOpen(false);
                       consumeNextPress.current = true;
                       dragStartScrollOffsetRef.current = scrollOffsetRef.current;
                       dragTargetHapticAtRef.current = 0;
@@ -796,6 +921,71 @@ const styles = StyleSheet.create({
   scroll: { flex: 1, backgroundColor: "transparent" },
   header: {
     marginBottom: 20,
+    position: "relative",
+    zIndex: 40,
+  },
+  headerTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  headerTitleWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  pageMenuWrap: {
+    position: "relative",
+    marginLeft: 2,
+  },
+  pageMenuTrigger: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: "center",
+    justifyContent: "center",
+    opacity: 0.9,
+  },
+  pageMenuDropdown: {
+    position: "absolute",
+    left: -10,
+    top: 28,
+    minWidth: 140,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: palette.warm[300],
+    backgroundColor: palette.cream.DEFAULT,
+    overflow: "hidden",
+    shadowColor: palette.sage[700],
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.22,
+    shadowRadius: 8,
+    elevation: 10,
+    zIndex: 60,
+  },
+  pageMenuItem: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  pageMenuItemSelected: {
+    backgroundColor: palette.sage[100],
+  },
+  pageMenuItemText: {
+    fontSize: 13,
+    fontFamily: "Nunito",
+    color: palette.warm[600],
+  },
+  pageMenuItemTextSelected: {
+    fontWeight: "700",
+    color: palette.sage[700],
+  },
+  pageMenuDivider: {
+    height: 1,
+    backgroundColor: palette.warm[200],
+  },
+  pageMenuCreateText: {
+    fontSize: 13,
+    fontFamily: "Nunito",
+    fontWeight: "700",
+    color: palette.sage[700],
   },
   title: {
     fontSize: 20,
@@ -826,7 +1016,8 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 14,
     fontFamily: "Nunito",
-    color: palette.text.muted,
+    color: palette.warm[600],
+    opacity: 0.7,
     textAlign: "center",
     lineHeight: 22,
   },

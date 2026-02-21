@@ -56,6 +56,7 @@ export const BoardViewport = forwardRef<BoardViewportHandle, BoardViewportProps>
     const insets = useContext(SafeAreaInsetsContext);
     const scrollRef = useRef<ScrollView>(null);
     const boardWidth = getBoardWidth(screenWidth);
+    const topPadding = BOARD_TOP_PADDING + (insets?.top ?? 0);
     const bottomPadding = getBoardScrollBottomPadding(screenWidth, insets?.bottom ?? 0);
 
     useImperativeHandle(ref, () => ({
@@ -89,7 +90,7 @@ export const BoardViewport = forwardRef<BoardViewportHandle, BoardViewportProps>
           styles.content,
           {
             paddingHorizontal: BOARD_SIDE_PADDING,
-            paddingTop: BOARD_TOP_PADDING,
+            paddingTop: topPadding,
             paddingBottom: bottomPadding,
           },
         ]}

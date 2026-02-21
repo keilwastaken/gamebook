@@ -65,7 +65,7 @@ const POSTCARD_SIDE_OPTIONS: Array<{ id: PostcardSide; label: string }> = [
 
 export default function AddScreen() {
   const router = useRouter();
-  const { addGameWithInitialNote } = useGamesContext();
+  const { addGameWithInitialNote, currentHomePage } = useGamesContext();
   const [title, setTitle] = useState("");
   const [whereLeftOff, setWhereLeftOff] = useState("");
   const [quickThought, setQuickThought] = useState("");
@@ -93,6 +93,7 @@ export default function AddScreen() {
       ticketType,
       mountStyle,
       postcardSide,
+      boardPage: currentHomePage,
     });
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setSaving(false);

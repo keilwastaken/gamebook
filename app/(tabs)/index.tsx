@@ -1205,6 +1205,21 @@ export default function HomeScreen() {
                     </Pressable>
                   </View>
                 ) : null}
+                {dropTargetConflictCells.map((cell) => (
+                  <View
+                    key={`drop-target-conflict-${cell.x}-${cell.y}`}
+                    testID={`drop-target-conflict-${cell.x}-${cell.y}`}
+                    style={[
+                      styles.dropTargetConflictCell,
+                      {
+                        left: cell.x * (cellWidth + BOARD_GAP),
+                        top: cell.y * (rowHeight + BOARD_GAP),
+                        width: cellWidth,
+                        height: rowHeight,
+                      },
+                    ]}
+                  />
+                ))}
               </View>
             </View>
           </View>

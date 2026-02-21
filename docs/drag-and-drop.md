@@ -126,6 +126,7 @@ Responsibilities:
 8. Trigger a haptic selection tick when the resolved slot key changes.
 9. Apply edge auto-scroll when pointer nears top/bottom viewport edges.
 10. Auto-scroll can use bottom content padding so row 6 cards can be re-grabbed above the tab bar.
+11. During drag-driven page switches, pointer mapping is reprojected after page-track animation settles to avoid transient origin drift that can cap horizontal reach.
 
 ### Drop Commit
 

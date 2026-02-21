@@ -688,10 +688,19 @@ export default function HomeScreen() {
       dragPointerRef.current = { x: pointerX, y: pointerY };
       setPageMenuOpen(false);
       setActivePage(nextPage);
-      animatePageTrackTo(-nextPage * pageStride);
+      animatePageTrackTo(-nextPage * pageStride, () => {
+        if (!draggingId) return;
+        boardRef.current?.measureInWindow((x, y) => {
+          boardOriginRef.current = { x, y };
+          const pointer = dragPointerRef.current;
+          if (pointer) {
+            positionDragAtPointer(pointer.x, pointer.y);
+          }
+        });
+      });
       void Haptics.selectionAsync().catch(() => {});
     },
-    [draggingId, pageCount, width, activePage, pageStride, animatePageTrackTo]
+    [draggingId, pageCount, width, activePage, pageStride, animatePageTrackTo, positionDragAtPointer]
   );
 
   useEffect(() => {
@@ -700,6 +709,10 @@ export default function HomeScreen() {
     if (!pointer) return;
 
     const frame = requestAnimationFrame(() => {
+      if (pageAnimationInFlightRef.current) {
+        positionDragAtPointer(pointer.x, pointer.y);
+        return;
+      }
       boardRef.current?.measureInWindow((x, y) => {
         boardOriginRef.current = { x, y };
         positionDragAtPointer(pointer.x, pointer.y);

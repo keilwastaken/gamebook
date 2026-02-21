@@ -1,8 +1,8 @@
-import { by, device, element, expect } from "detox";
+import { by, device, element, expect, waitFor } from "detox";
 
 describe("Add Flow: Center Button", () => {
   beforeAll(async () => {
-    await device.launchApp({ newInstance: true });
+    await device.launchApp({ newInstance: true, delete: true });
   });
 
   it("opens the add screen when center button is tapped", async () => {
@@ -18,7 +18,7 @@ describe("Add Flow: Center Button", () => {
 
 describe("Add Flow: Form validation", () => {
   beforeAll(async () => {
-    await device.launchApp({ newInstance: true });
+    await device.launchApp({ newInstance: true, delete: true });
   });
 
   it("opens Add from center button and shows form fields", async () => {
@@ -42,7 +42,7 @@ describe("Add Flow: Save and return home", () => {
   const NEW_GAME_NOTE = "Just finished the first boss";
 
   beforeAll(async () => {
-    await device.launchApp({ newInstance: true });
+    await device.launchApp({ newInstance: true, delete: true });
   });
 
   it("fills form, saves, navigates to Home, and card appears with lastNote", async () => {
@@ -51,12 +51,13 @@ describe("Add Flow: Save and return home", () => {
 
     await element(by.id("add-title-input")).typeText(NEW_GAME_TITLE);
     await element(by.id("add-where-input")).typeText(NEW_GAME_NOTE);
+    await element(by.id("add-ticket-type-ticket")).tap();
 
     await expect(element(by.id("add-save-button"))).toBeVisible();
     await element(by.id("add-save-button")).tap();
 
     await expect(element(by.id("screen-home"))).toBeVisible();
-    await expect(element(by.text(NEW_GAME_TITLE))).toBeVisible();
-    await expect(element(by.text(NEW_GAME_NOTE))).toBeVisible();
+    await waitFor(element(by.text(NEW_GAME_TITLE))).toBeVisible().withTimeout(5000);
+    await waitFor(element(by.text(NEW_GAME_NOTE))).toBeVisible().withTimeout(5000);
   });
 });

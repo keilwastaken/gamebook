@@ -1,15 +1,16 @@
 import React from "react";
 import { PanResponder } from "react-native";
+import * as ReactNative from "react-native";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react-native";
 
 import HomeScreen from "../index";
+import { palette } from "@/constants/palette";
 import { useGamesContext } from "@/lib/games-context";
 import * as BoardLayout from "@/lib/board-layout";
 
 const mockUseGamesContext = useGamesContext as jest.MockedFunction<typeof useGamesContext>;
 const mockSaveNote = jest.fn();
 const mockMoveGameToBoardTarget = jest.fn();
-const mockSetGameSpanPreset = jest.fn();
 
 jest.mock("@/lib/games-context", () => ({
   useGamesContext: jest.fn(),
@@ -37,15 +38,10 @@ jest.mock("@/components/journal-overlay", () => ({
     game,
     onSave,
     onClose,
-    onSelectSize,
   }: {
     game: { title: string };
     onSave: (note: { whereLeftOff: string; quickThought?: string }) => void;
     onClose: () => void;
-    onSelectSize?: (
-      preset: { w: number; h: number; id: string },
-      movement: { x: number; y: number }
-    ) => void;
   }) => {
     const React = require("react");
     const { Pressable, Text, View } = require("react-native");
@@ -57,10 +53,6 @@ jest.mock("@/components/journal-overlay", () => ({
           onPress={() =>
             onSave({ whereLeftOff: "Saved checkpoint", quickThought: "Nice loop" })
           }
-        />
-        <Pressable
-          testID="mock-journal-size"
-          onPress={() => onSelectSize?.({ id: "full-grid", w: 2, h: 2 }, { x: 1, y: 0 })}
         />
         <Pressable testID="mock-journal-close" onPress={onClose} />
       </View>
@@ -74,7 +66,6 @@ function makeContext(overrides: Partial<ReturnType<typeof useGamesContext>> = {}
     loading: false,
     saveNote: mockSaveNote,
     moveGameToBoardTarget: mockMoveGameToBoardTarget,
-    setGameSpanPreset: mockSetGameSpanPreset,
     games: [],
     addGameWithInitialNote: jest.fn(),
     saveBoardPlacement: jest.fn(),
@@ -84,14 +75,14 @@ function makeContext(overrides: Partial<ReturnType<typeof useGamesContext>> = {}
   } as ReturnType<typeof useGamesContext>;
 }
 
-describe("HomeScreen", () => {
+// Regression contract: drag/drop UI interaction tests for the board screen.
+describe("[dragdrop-regression] HomeScreen", () => {
   let capturedPanResponderConfig: any;
   let panResponderSpy: jest.SpyInstance;
 
   beforeEach(() => {
     mockSaveNote.mockReset().mockResolvedValue(undefined);
     mockMoveGameToBoardTarget.mockReset().mockResolvedValue(undefined);
-    mockSetGameSpanPreset.mockReset().mockResolvedValue(undefined);
     mockUseGamesContext.mockReset();
     capturedPanResponderConfig = null;
     panResponderSpy = jest.spyOn(PanResponder, "create").mockImplementation((config) => {
@@ -116,7 +107,7 @@ describe("HomeScreen", () => {
     expect(screen.getByText(/No games pinned yet/i)).toBeTruthy();
   });
 
-  it("opens journal overlay from card press, saves note, and applies size preset movement", async () => {
+  it("opens journal overlay from card press and saves note", async () => {
     mockUseGamesContext.mockReturnValue(
       makeContext({
         loading: false,
@@ -136,16 +127,6 @@ describe("HomeScreen", () => {
     render(<HomeScreen />);
     fireEvent.press(screen.getByTestId("playing-card-add-game-1"));
     expect(screen.getByTestId("mock-journal-overlay")).toBeTruthy();
-
-    fireEvent.press(screen.getByTestId("mock-journal-size"));
-    await waitFor(() =>
-      expect(mockSetGameSpanPreset).toHaveBeenCalledWith(
-        "game-1",
-        { w: 2, h: 2 },
-        4,
-        { x: 1, y: 0 }
-      )
-    );
 
     fireEvent.press(screen.getByTestId("mock-journal-save"));
     await waitFor(() =>
@@ -291,6 +272,237 @@ describe("HomeScreen", () => {
       capturedPanResponderConfig.onPanResponderTerminate();
     });
   });
+
+  it("allows dragging a wide card over a single-cell occupied slot and still commits drop", async () => {
+    const windowSpy = jest
+      .spyOn(ReactNative, "useWindowDimensions")
+      .mockReturnValue({ width: 232, height: 900, scale: 2, fontScale: 1 });
+
+    try {
+      mockUseGamesContext.mockReturnValue(
+        makeContext({
+          loading: false,
+          playingGames: [
+            {
+              id: "drag-wide-overlap",
+              title: "Drag Wide Overlap",
+              status: "playing",
+              ticketType: "ticket",
+              board: { x: 0, y: 0, w: 2, h: 1, columns: 4 },
+              notes: [],
+            },
+            {
+              id: "target-cell",
+              title: "Target Cell",
+              status: "playing",
+              ticketType: "minimal",
+              board: { x: 2, y: 0, w: 1, h: 1, columns: 4 },
+              notes: [],
+            },
+          ],
+        })
+      );
+
+      render(<HomeScreen />);
+      fireEvent(screen.getByTestId("playing-card-add-drag-wide-overlap"), "longPress", {
+        nativeEvent: { locationX: 8, locationY: 8 },
+      });
+
+      await waitFor(() =>
+        expect(capturedPanResponderConfig.onMoveShouldSetPanResponderCapture()).toBe(true)
+      );
+
+      await act(async () => {
+        capturedPanResponderConfig.onPanResponderMove({}, { moveX: 120, moveY: 8 });
+        capturedPanResponderConfig.onPanResponderRelease();
+      });
+
+      await waitFor(() => expect(mockMoveGameToBoardTarget).toHaveBeenCalledTimes(1));
+      const [gameId, target, columns] =
+        mockMoveGameToBoardTarget.mock.calls[mockMoveGameToBoardTarget.mock.calls.length - 1];
+      expect(gameId).toBe("drag-wide-overlap");
+      expect(columns).toBe(4);
+      expect(target).toEqual(expect.objectContaining({ y: 0, w: 2, h: 1 }));
+      expect(target.x).toBeGreaterThanOrEqual(1);
+    } finally {
+      windowSpy.mockRestore();
+    }
+  });
+
+  it("morphs drop target span near a column boundary for 1x1 cards", async () => {
+    const windowSpy = jest
+      .spyOn(ReactNative, "useWindowDimensions")
+      .mockReturnValue({ width: 232, height: 900, scale: 2, fontScale: 1 });
+
+    try {
+      mockUseGamesContext.mockReturnValue(
+        makeContext({
+          loading: false,
+          playingGames: [
+            {
+              id: "drag-dynamic",
+              title: "Dynamic",
+              status: "playing",
+              ticketType: "minimal",
+              board: { x: 0, y: 0, w: 1, h: 1, columns: 4 },
+              notes: [],
+            },
+          ],
+        })
+      );
+
+      render(<HomeScreen />);
+      fireEvent(screen.getByTestId("playing-card-add-drag-dynamic"), "longPress", {
+        nativeEvent: { locationX: 8, locationY: 8 },
+      });
+
+      await waitFor(() =>
+        expect(capturedPanResponderConfig.onMoveShouldSetPanResponderCapture()).toBe(true)
+      );
+
+      await act(async () => {
+        capturedPanResponderConfig.onPanResponderMove({}, { moveX: 90, moveY: 100 });
+        capturedPanResponderConfig.onPanResponderRelease();
+      });
+
+      await waitFor(() =>
+        expect(mockMoveGameToBoardTarget).toHaveBeenCalledWith(
+          "drag-dynamic",
+          expect.objectContaining({ w: 2, h: 1 }),
+          4
+        )
+      );
+    } finally {
+      windowSpy.mockRestore();
+    }
+  });
+
+  it("highlights only the conflicting grid cell instead of tinting the whole target red", async () => {
+    const windowSpy = jest
+      .spyOn(ReactNative, "useWindowDimensions")
+      .mockReturnValue({ width: 232, height: 900, scale: 2, fontScale: 1 });
+
+    try {
+      mockUseGamesContext.mockReturnValue(
+        makeContext({
+          loading: false,
+          playingGames: [
+            {
+              id: "dragged",
+              title: "Dragged",
+              status: "playing",
+              ticketType: "ticket",
+              board: { x: 0, y: 0, w: 2, h: 1, columns: 4 },
+              notes: [],
+            },
+            {
+              id: "blocker",
+              title: "Blocker",
+              status: "playing",
+              ticketType: "minimal",
+              board: { x: 3, y: 0, w: 1, h: 1, columns: 4 },
+              notes: [],
+            },
+          ],
+        })
+      );
+
+      render(<HomeScreen />);
+      fireEvent(screen.getByTestId("playing-card-add-dragged"), "longPress", {
+        nativeEvent: { locationX: 8, locationY: 8 },
+      });
+
+      await waitFor(() =>
+        expect(capturedPanResponderConfig.onMoveShouldSetPanResponderCapture()).toBe(true)
+      );
+
+      await act(async () => {
+        capturedPanResponderConfig.onPanResponderMove({}, { moveX: 300, moveY: 8 });
+      });
+
+      const indicator = screen.getByTestId("drop-target-indicator");
+      const style = ReactNative.StyleSheet.flatten(indicator.props.style);
+      expect(style.borderColor).toBe(palette.sage[500]);
+      expect(screen.getByTestId("drop-target-conflict-3-0")).toBeTruthy();
+      expect(screen.queryByTestId("drop-target-conflict-2-0")).toBeNull();
+    } finally {
+      windowSpy.mockRestore();
+    }
+  });
+
+  it.each([
+    {
+      id: "drag-wide",
+      title: "Drag Wide",
+      ticketType: "ticket" as const,
+      board: { x: 0, y: 0, w: 2, h: 1, columns: 4 },
+      moveX: 90,
+      moveY: 100,
+      scenario: "keeps wide span when hovering near a column boundary",
+      expectedSpan: { w: 2, h: 1 },
+    },
+    {
+      id: "drag-tall",
+      title: "Drag Tall",
+      ticketType: "minimal" as const,
+      board: { x: 0, y: 0, w: 1, h: 2, columns: 4 },
+      moveX: 70,
+      moveY: 76,
+      scenario: "can morph tall span down when hovering a 1x1 target",
+      expectedSpan: { w: 1, h: 1 },
+    },
+  ])(
+    "$scenario",
+    async ({ id, title, ticketType, board, moveX, moveY, expectedSpan }) => {
+      const windowSpy = jest
+        .spyOn(ReactNative, "useWindowDimensions")
+        .mockReturnValue({ width: 232, height: 900, scale: 2, fontScale: 1 });
+
+      try {
+        mockUseGamesContext.mockReturnValue(
+          makeContext({
+            loading: false,
+            playingGames: [
+              {
+                id,
+                title,
+                status: "playing",
+                ticketType,
+                board,
+                notes: [],
+              },
+            ],
+          })
+        );
+
+        render(<HomeScreen />);
+        expect(capturedPanResponderConfig).toBeTruthy();
+
+        fireEvent(screen.getByTestId(`playing-card-add-${id}`), "longPress", {
+          nativeEvent: { locationX: 8, locationY: 8 },
+        });
+
+        await waitFor(() =>
+          expect(capturedPanResponderConfig.onMoveShouldSetPanResponderCapture()).toBe(true)
+        );
+
+        await act(async () => {
+          capturedPanResponderConfig.onPanResponderMove({}, { moveX, moveY });
+          capturedPanResponderConfig.onPanResponderRelease();
+        });
+
+        await waitFor(() =>
+          expect(mockMoveGameToBoardTarget).toHaveBeenCalledWith(
+            id,
+            expect.objectContaining(expectedSpan),
+            4
+          )
+        );
+      } finally {
+        windowSpy.mockRestore();
+      }
+    }
+  );
 
   it("ignores tap immediately after long press, then allows tap after drag ends", () => {
     mockUseGamesContext.mockReturnValue(

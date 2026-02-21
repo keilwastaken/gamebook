@@ -9,6 +9,7 @@ module.exports = {
   moduleNameMapper: {
     "^@/(.*)$": "<rootDir>/$1",
   },
+  modulePathIgnorePatterns: ["<rootDir>/tmp/"],
   collectCoverageFrom: [
     "components/**/*.{ts,tsx}",
     "hooks/**/*.{ts,tsx}",

@@ -6,6 +6,11 @@ import {
   UserIcon,
   IconProps,
 } from "phosphor-react-native";
+import {
+  ICON_SIZE_RATIO,
+  IMAGE_ASPECT_RATIO,
+  TAB_BAR_HEIGHT_RATIO,
+} from "@/constants/layout";
 
 export type PhosphorIcon = React.ComponentType<IconProps>;
 
@@ -24,11 +29,4 @@ export const TABS: TabConfig[] = [
   { name: "profile", label: "Profile", icon: UserIcon },
 ];
 
-// Image aspect ratio (1536x1024)
-export const IMAGE_ASPECT_RATIO = 1024 / 1536;
-
-// Visible tab bar height as ratio of screen width
-export const TAB_BAR_HEIGHT_RATIO = 0.28;
-
-// Icon size as percentage of screen width
-export const ICON_SIZE_RATIO = 0.1;
+export { IMAGE_ASPECT_RATIO, TAB_BAR_HEIGHT_RATIO, ICON_SIZE_RATIO };

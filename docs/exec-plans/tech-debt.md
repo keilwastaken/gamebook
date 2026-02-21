@@ -15,3 +15,5 @@ development. Prioritize by impact and fix on a regular cadence.
 
 | Area | Description | Resolved | How |
 |------|-------------|----------|-----|
+| Drag/Drop Contract | Runtime drifted from docs/tests around insert+reflow vs strict overlap behavior | 2026-02-21 | Unified on strict no-overlap contract and updated architecture/drag-drop/plan docs + regression tests |
+| Drag/Drop Cleanup | Legacy insertion helper path (`findBestInsertion`, `previewInsertionAtIndex`) remained test-only after behavior pivot | 2026-02-21 | Removed helper functions and retired tests to prevent accidental reintroduction during refactors |

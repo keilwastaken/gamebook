@@ -11,11 +11,12 @@ import {
 import {
   applyBoardLayout,
   applyBoardLayoutWithPinned,
-  constrainSpanForCard,
   DEFAULT_BOARD_COLUMNS,
-  getCardSpan,
   getCardSpanPresets,
+  constrainSpanForCard,
+  getCardSpan,
 } from "./board-layout";
+import { commitMoveStrictNoOverlap } from "./board/engine";
 import { decodeStoredGames } from "./game-storage-codec";
 
 const STORAGE_KEY = "@gamebook/games";
@@ -286,9 +287,7 @@ export function useGames() {
       columns: number = DEFAULT_BOARD_COLUMNS
     ): Promise<void> => {
       setGamesWithPersistence((prev) => {
-        if (!prev.some((game) => game.id === gameId)) return prev;
-        const next = applyBoardLayoutWithPinned(prev, gameId, target, columns);
-        return next;
+        return commitMoveStrictNoOverlap(prev, gameId, target, columns);
       });
     },
     [setGamesWithPersistence]

@@ -33,6 +33,9 @@ journey. Designed for comfort and delight, not competition.
    update a colocated test, including negative boundary coverage for invalid
    input and side-effect isolation where relevant.
 8. **Run harness before PR** — `pnpm test && pnpm typecheck && pnpm lint`.
+9. **Completion requires doc sync** — before marking any task/plan complete,
+   update all associated docs (`docs/`, exec plans, architecture/testing notes)
+   so behavior and implementation status are accurate.
 
 ## Cozy UI Design Principles
 

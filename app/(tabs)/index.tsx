@@ -4,13 +4,13 @@ import {
   Animated,
   PanResponder,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   useWindowDimensions,
   View,
 } from "react-native";
 
+import { BoardViewport } from "@/components/board";
 import { palette } from "@/constants/palette";
 import {
   MinimalCard,
@@ -19,31 +19,25 @@ import {
   TicketCard,
   WidgetCard,
 } from "@/components/cards";
-import {
-  JournalOverlay,
-  type JournalSizePreset,
-} from "@/components/journal-overlay";
-import {
-  GRID_ACTIVE_BOTTOM_LEFT,
-  GRID_ACTIVE_BOTTOM_RIGHT,
-  GRID_ACTIVE_BOTTOM_ROW,
-  GRID_ACTIVE_FULL_GRID,
-  GRID_ACTIVE_LEFT_COLUMN,
-  GRID_ACTIVE_RIGHT_COLUMN,
-  GRID_ACTIVE_TOP_LEFT,
-  GRID_ACTIVE_TOP_RIGHT,
-  GRID_ACTIVE_TOP_ROW,
-} from "@/components/ui/grid-glyph";
+import { JournalOverlay } from "@/components/journal-overlay";
 import { useGamesContext } from "@/lib/games-context";
 import {
+  BOARD_GAP,
+  chooseNearestAllowedSpan,
+  getBoardMetrics,
+  getDropTargetConflictCells,
+  type GridCell,
+} from "@/lib/board";
+import {
+  DEFAULT_BOARD_COLUMNS,
   applyBoardLayout,
   constrainSpanForCard,
+  getAxisIntentSpan,
   getCardSpan,
   getCardSpanPresets,
 } from "@/lib/board-layout";
 import { DEFAULT_TICKET_TYPE, type Game, type TicketType } from "@/lib/types";
 
-const BOARD_GAP = 8;
 const BASE_CARD_SIZE: Record<TicketType, { width: number; height: number }> = {
   polaroid: { width: 140, height: 196 },
   postcard: { width: 228, height: 142 },
@@ -52,63 +46,12 @@ const BASE_CARD_SIZE: Record<TicketType, { width: number; height: number }> = {
   minimal: { width: 220, height: 84 },
 };
 
-const DEFAULT_SIZE_PRESET_ORDER: JournalSizePreset[] = [
-  { id: "top-left", w: 1, h: 1, activePositions: GRID_ACTIVE_TOP_LEFT },
-  { id: "top-right", w: 1, h: 1, activePositions: GRID_ACTIVE_TOP_RIGHT },
-  { id: "bottom-left", w: 1, h: 1, activePositions: GRID_ACTIVE_BOTTOM_LEFT },
-  { id: "bottom-right", w: 1, h: 1, activePositions: GRID_ACTIVE_BOTTOM_RIGHT },
-  { id: "top-row", w: 2, h: 1, activePositions: GRID_ACTIVE_TOP_ROW },
-  { id: "bottom-row", w: 2, h: 1, activePositions: GRID_ACTIVE_BOTTOM_ROW },
-  { id: "left-column", w: 1, h: 2, activePositions: GRID_ACTIVE_LEFT_COLUMN },
-  { id: "right-column", w: 1, h: 2, activePositions: GRID_ACTIVE_RIGHT_COLUMN },
-  { id: "full-grid", w: 2, h: 2, activePositions: GRID_ACTIVE_FULL_GRID },
-];
-
-const SIZE_PRESET_IDS_BY_TICKET_TYPE: Record<TicketType, string[]> = {
-  polaroid: [
-    "top-left",
-    "top-right",
-    "bottom-left",
-    "bottom-right",
-    "top-row",
-    "bottom-row",
-    "left-column",
-    "right-column",
-    "full-grid",
-  ],
-  postcard: ["top-row", "bottom-row", "full-grid"],
-  ticket: ["top-row", "bottom-row", "full-grid"],
-  minimal: [
-    "top-left",
-    "top-right",
-    "bottom-left",
-    "bottom-right",
-    "top-row",
-    "bottom-row",
-    "left-column",
-    "right-column",
-    "full-grid",
-  ],
-  widget: [
-    "top-left",
-    "top-right",
-    "bottom-left",
-    "bottom-right",
-    "top-row",
-    "bottom-row",
-    "left-column",
-    "right-column",
-    "full-grid",
-  ],
-};
-
 export default function HomeScreen() {
   const {
     playingGames,
     loading,
     saveNote,
     moveGameToBoardTarget,
-    setGameSpanPreset,
   } = useGamesContext();
   const [activeGame, setActiveGame] = useState<Game | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
@@ -124,9 +67,17 @@ export default function HomeScreen() {
     w: number;
     h: number;
   } | null>(null);
+  const [dropTargetConflictCells, setDropTargetConflictCells] = useState<GridCell[]>([]);
+  const dropTargetConflictKeyRef = useRef("");
+  const dropTargetRef = useRef<{
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+  } | null>(null);
   const consumeNextPress = useRef(false);
-  const dragSpanRef = useRef<{ w: number; h: number }>({ w: 1, h: 1 });
-  const targetSlotRef = useRef<{ x: number; y: number } | null>(null);
+  const dragBaseSpanRef = useRef<{ w: number; h: number }>({ w: 1, h: 1 });
+  const targetSlotRef = useRef<{ x: number; y: number; w: number; h: number } | null>(null);
   const boardRef = useRef<View>(null);
   const boardOriginRef = useRef({ x: 0, y: 0 });
   const dragOffsetRef = useRef({ x: 0, y: 0 });
@@ -137,11 +88,11 @@ export default function HomeScreen() {
   const dropTargetWidth = useRef(new Animated.Value(0)).current;
   const dropTargetHeight = useRef(new Animated.Value(0)).current;
   const { width } = useWindowDimensions();
-  const boardColumns = 4;
-  const boardWidth = Math.max(200, width - 32);
-  const cellWidth =
-    (boardWidth - BOARD_GAP * (boardColumns - 1)) / boardColumns;
-  const rowHeight = cellWidth * 1.28;
+  const boardColumns = DEFAULT_BOARD_COLUMNS;
+  const { cellWidth, rowHeight } = useMemo(
+    () => getBoardMetrics(width, boardColumns),
+    [width, boardColumns]
+  );
   const boardGames = useMemo(
     () =>
       playingGames.some((game) => !game.board)
@@ -249,53 +200,6 @@ export default function HomeScreen() {
     setActiveGame(null);
   }, []);
 
-  const activeGameSpanPresets = useMemo(() => {
-    if (!activeGame) return [];
-
-    const spanPresets = getCardSpanPresets(activeGame.ticketType, boardColumns);
-    const allowedPresetKeys = new Set(
-      spanPresets.map((preset) => `${preset.w}x${preset.h}`)
-    );
-
-    if (activeGame.ticketType) {
-      const presetMap = new Map(
-        DEFAULT_SIZE_PRESET_ORDER.map((preset) => [preset.id, preset] as const)
-      );
-      return SIZE_PRESET_IDS_BY_TICKET_TYPE[activeGame.ticketType]
-        .map((presetId) => presetMap.get(presetId))
-        .filter((preset): preset is JournalSizePreset => Boolean(preset))
-        .filter((preset) => allowedPresetKeys.has(`${preset.w}x${preset.h}`));
-    }
-
-    return spanPresets.map((preset) => ({
-      id: `${preset.w}x${preset.h}`,
-      ...preset,
-    }));
-  }, [activeGame, boardColumns]);
-  const activeGameCurrentSpan = useMemo(() => {
-    if (!activeGame) return { w: 1, h: 1 };
-    return constrainSpanForCard(
-      activeGame.ticketType,
-      activeGame.board
-        ? { w: activeGame.board.w, h: activeGame.board.h }
-        : getCardSpan(activeGame.ticketType),
-      boardColumns
-    );
-  }, [activeGame, boardColumns]);
-
-  const handleSetActiveGameSpan = useCallback(
-    async (preset: JournalSizePreset, movement: { x: number; y: number }) => {
-      if (!activeGame) return;
-      await setGameSpanPreset(
-        activeGame.id,
-        { w: preset.w, h: preset.h },
-        boardColumns,
-        movement
-      );
-    },
-    [activeGame, setGameSpanPreset, boardColumns]
-  );
-
   useEffect(() => {
     if (!activeGame) return;
     const latest = boardGames.find((game) => game.id === activeGame.id);
@@ -308,22 +212,39 @@ export default function HomeScreen() {
     setDraggingId(null);
     setDragVisualSpan({ w: 1, h: 1 });
     setDragVisualScale(1);
-    dragSpanRef.current = { w: 1, h: 1 };
+    dragBaseSpanRef.current = { w: 1, h: 1 };
     targetSlotRef.current = null;
     setDropTarget(null);
+    setDropTargetConflictCells([]);
+    dropTargetConflictKeyRef.current = "";
+    dropTargetRef.current = null;
     dropTargetKeyRef.current = "";
   }, []);
 
   const updateDropTarget = useCallback(
     (left: number, top: number) => {
       if (!draggingId) return;
+      const draggingGame = boardGames.find((game) => game.id === draggingId);
+      if (!draggingGame) return;
+
       const strideX = cellWidth + BOARD_GAP;
       const strideY = rowHeight + BOARD_GAP;
-      const span = dragSpanRef.current;
+      const baseSpan = dragBaseSpanRef.current;
+      const baseDragWidth = baseSpan.w * cellWidth + (baseSpan.w - 1) * BOARD_GAP;
+      const baseDragHeight = baseSpan.h * rowHeight + (baseSpan.h - 1) * BOARD_GAP;
+      const dragCenterX = left + baseDragWidth / 2;
+      const dragCenterY = top + baseDragHeight / 2;
+
+      const allowedPresets = getCardSpanPresets(draggingGame.ticketType, boardColumns);
+      const maxAllowedW = Math.max(...allowedPresets.map((preset) => preset.w));
+      const maxAllowedH = Math.max(...allowedPresets.map((preset) => preset.h));
+      const intentSpan = {
+        w: getAxisIntentSpan(dragCenterX, strideX, maxAllowedW),
+        h: getAxisIntentSpan(dragCenterY, strideY, maxAllowedH),
+      };
+      const span = chooseNearestAllowedSpan(allowedPresets, intentSpan, baseSpan);
       const dragWidth = span.w * cellWidth + (span.w - 1) * BOARD_GAP;
       const dragHeight = span.h * rowHeight + (span.h - 1) * BOARD_GAP;
-      const dragCenterX = left + dragWidth / 2;
-      const dragCenterY = top + dragHeight / 2;
       const maxRowsToScan = Math.max(
         boardRows + 3,
         Math.ceil((top + dragHeight) / strideY) + 3,
@@ -351,11 +272,23 @@ export default function HomeScreen() {
 
       let desiredX = bestSlot?.x ?? 0;
       let desiredY = bestSlot?.y ?? 0;
+      let desiredW = span.w;
+      let desiredH = span.h;
 
       const currentSlot = targetSlotRef.current;
-      if (currentSlot && (currentSlot.x !== desiredX || currentSlot.y !== desiredY)) {
-        const currentCenterX = currentSlot.x * strideX + dragWidth / 2;
-        const currentCenterY = currentSlot.y * strideY + dragHeight / 2;
+      if (
+        currentSlot &&
+        (currentSlot.x !== desiredX ||
+          currentSlot.y !== desiredY ||
+          currentSlot.w !== desiredW ||
+          currentSlot.h !== desiredH)
+      ) {
+        const currentDragWidth =
+          currentSlot.w * cellWidth + (currentSlot.w - 1) * BOARD_GAP;
+        const currentDragHeight =
+          currentSlot.h * rowHeight + (currentSlot.h - 1) * BOARD_GAP;
+        const currentCenterX = currentSlot.x * strideX + currentDragWidth / 2;
+        const currentCenterY = currentSlot.y * strideY + currentDragHeight / 2;
         const currentDx = dragCenterX - currentCenterX;
         const currentDy = dragCenterY - currentCenterY;
         const currentDistSq = currentDx * currentDx + currentDy * currentDy;
@@ -364,20 +297,34 @@ export default function HomeScreen() {
         if (nextDistSq + hysteresisSq >= currentDistSq) {
           desiredX = currentSlot.x;
           desiredY = currentSlot.y;
+          desiredW = currentSlot.w;
+          desiredH = currentSlot.h;
         }
       }
 
-      const key = `${desiredX}-${desiredY}-${span.w}-${span.h}`;
+      const key = `${desiredX}-${desiredY}-${desiredW}-${desiredH}`;
       if (key !== dropTargetKeyRef.current) {
         dropTargetKeyRef.current = key;
         const nextTarget = {
           x: desiredX,
           y: desiredY,
-          w: span.w,
-          h: span.h,
+          w: desiredW,
+          h: desiredH,
         };
-        targetSlotRef.current = { x: desiredX, y: desiredY };
+        const nextConflictCells = getDropTargetConflictCells(
+          boardGames,
+          draggingGame.id,
+          nextTarget,
+          boardColumns
+        );
+        const nextConflictKey = nextConflictCells.map((cell) => `${cell.x},${cell.y}`).join("|");
+        if (dropTargetConflictKeyRef.current !== nextConflictKey) {
+          dropTargetConflictKeyRef.current = nextConflictKey;
+          setDropTargetConflictCells(nextConflictCells);
+        }
+        targetSlotRef.current = nextTarget;
         setDropTarget(nextTarget);
+        dropTargetRef.current = nextTarget;
         animateDropTargetTo(nextTarget);
       }
     },
@@ -387,17 +334,18 @@ export default function HomeScreen() {
       cellWidth,
       rowHeight,
       boardRows,
+      boardGames,
       animateDropTargetTo,
     ]
   );
 
   const handleDrop = useCallback(async () => {
-    if (!draggingId || !dropTarget) return;
-    await moveGameToBoardTarget(draggingId, dropTarget, boardColumns);
+    const currentTarget = dropTargetRef.current;
+    if (!draggingId || !currentTarget) return;
+    await moveGameToBoardTarget(draggingId, currentTarget, boardColumns);
     stopDragging();
   }, [
     draggingId,
-    dropTarget,
     moveGameToBoardTarget,
     boardColumns,
     stopDragging,
@@ -456,12 +404,11 @@ export default function HomeScreen() {
 
   return (
     <>
-      <ScrollView
+      <BoardViewport
         testID="screen-home"
-        contentContainerStyle={styles.scrollContent}
         style={styles.scroll}
-        scrollEnabled={draggingId === null}
-        showsVerticalScrollIndicator={false}
+        dragging={draggingId !== null}
+        screenWidth={width}
       >
         <View style={styles.header}>
           <Text style={styles.title}>Currently Playing</Text>
@@ -528,7 +475,7 @@ export default function HomeScreen() {
                         { w: board.w, h: board.h },
                         boardColumns
                       );
-                      dragSpanRef.current = lockedSpan;
+                      dragBaseSpanRef.current = lockedSpan;
                       setDragVisualSpan(lockedSpan);
                       setDragVisualScale(scale);
                       setDragIndex(index);
@@ -538,9 +485,20 @@ export default function HomeScreen() {
                         w: lockedSpan.w,
                         h: lockedSpan.h,
                       };
-                      targetSlotRef.current = { x: board.x, y: board.y };
+                      const initialConflictCells = getDropTargetConflictCells(
+                        boardGames,
+                        game.id,
+                        initialTarget,
+                        boardColumns
+                      );
+                      dropTargetConflictKeyRef.current = initialConflictCells
+                        .map((cell) => `${cell.x},${cell.y}`)
+                        .join("|");
+                      setDropTargetConflictCells(initialConflictCells);
+                      targetSlotRef.current = initialTarget;
                       dropTargetKeyRef.current = `${initialTarget.x}-${initialTarget.y}-${initialTarget.w}-${initialTarget.h}`;
                       setDropTarget(initialTarget);
+                      dropTargetRef.current = initialTarget;
                       animateDropTargetTo(initialTarget, true);
                     }}
                     delayLongPress={220}
@@ -597,8 +555,10 @@ export default function HomeScreen() {
                 })}
                 {dropTarget ? (
                   <Animated.View
+                    testID="drop-target-indicator"
                     style={[
                       styles.dropTarget,
+                      styles.dropTargetActive,
                       {
                         left: dropTargetLeft,
                         top: dropTargetTop,
@@ -608,6 +568,21 @@ export default function HomeScreen() {
                     ]}
                   />
                 ) : null}
+                {dropTargetConflictCells.map((cell) => (
+                  <View
+                    key={`drop-target-conflict-${cell.x}-${cell.y}`}
+                    testID={`drop-target-conflict-${cell.x}-${cell.y}`}
+                    style={[
+                      styles.dropTargetConflictCell,
+                      {
+                        left: cell.x * (cellWidth + BOARD_GAP),
+                        top: cell.y * (rowHeight + BOARD_GAP),
+                        width: cellWidth,
+                        height: rowHeight,
+                      },
+                    ]}
+                  />
+                ))}
               </View>
             ) : null}
             {draggingGame ? (
@@ -633,18 +608,13 @@ export default function HomeScreen() {
             ) : null}
           </View>
         )}
-      </ScrollView>
+      </BoardViewport>
 
       {activeGame && (
         <JournalOverlay
           game={activeGame}
           onSave={handleSaveNote}
           onClose={handleCloseJournal}
-          sizePresets={activeGameSpanPresets}
-          currentSize={activeGameCurrentSpan}
-          onSelectSize={(preset, movement) => {
-            void handleSetActiveGameSpan(preset, movement);
-          }}
         />
       )}
     </>
@@ -653,12 +623,6 @@ export default function HomeScreen() {
 
 const styles = StyleSheet.create({
   scroll: { flex: 1, backgroundColor: "transparent" },
-  scrollContent: {
-    flexGrow: 1,
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 120,
-  },
   header: {
     marginBottom: 20,
   },
@@ -715,9 +679,18 @@ const styles = StyleSheet.create({
   dropTarget: {
     position: "absolute",
     borderWidth: 2,
-    borderColor: palette.sage[500],
-    backgroundColor: "rgba(107, 139, 94, 0.14)",
     borderRadius: 8,
+  },
+  dropTargetActive: {
+    borderColor: palette.sage[500],
+    backgroundColor: palette.sage[100],
+  },
+  dropTargetConflictCell: {
+    position: "absolute",
+    borderWidth: 2,
+    borderColor: palette.clay[600],
+    backgroundColor: palette.clay[100],
+    borderRadius: 6,
   },
   dragOverlay: {
     position: "absolute",

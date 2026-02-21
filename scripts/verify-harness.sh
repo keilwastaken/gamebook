@@ -13,6 +13,10 @@ echo "=== Unit & Component Tests ==="
 pnpm test
 
 echo ""
+echo "=== Boundary Verification ==="
+pnpm verify:boundaries
+
+echo ""
 echo "=== Doc Link Verification ==="
 node scripts/verify-doc-links.js
 

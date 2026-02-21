@@ -12,23 +12,8 @@ import {
 import * as Haptics from "expo-haptics";
 
 import { palette } from "@/constants/palette";
-import {
-  GRID_ACTIVE_FULL_GRID,
-  GRID_ACTIVE_LEFT_COLUMN,
-  GRID_ACTIVE_TOP_LEFT,
-  GRID_ACTIVE_TOP_ROW,
-  GridGlyph,
-  type GridCellPosition,
-} from "@/components/ui/grid-glyph";
 import { CozyShadows } from "@/utils/shadows";
 import type { Game } from "@/lib/types";
-
-export interface JournalSizePreset {
-  id?: string;
-  w: number;
-  h: number;
-  activePositions?: readonly GridCellPosition[];
-}
 
 export interface JournalOverlayProps {
   game: Game;
@@ -37,26 +22,16 @@ export interface JournalOverlayProps {
     quickThought?: string;
   }) => void;
   onClose: () => void;
-  sizePresets?: JournalSizePreset[];
-  currentSize?: { w: number; h: number };
-  onSelectSize?: (
-    preset: JournalSizePreset,
-    movement: { x: number; y: number }
-  ) => void;
 }
 
 export function JournalOverlay({
   game,
   onSave,
   onClose,
-  sizePresets = [],
-  currentSize,
-  onSelectSize,
 }: JournalOverlayProps) {
   const [whereLeftOff, setWhereLeftOff] = useState("");
   const [quickThought, setQuickThought] = useState("");
   const [saving, setSaving] = useState(false);
-  const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(40)).current;
@@ -80,10 +55,6 @@ export function JournalOverlay({
       whereInputRef.current?.focus();
     });
   }, [fadeAnim, slideAnim]);
-
-  useEffect(() => {
-    setSelectedPresetId(null);
-  }, [game.id]);
 
   const handleSave = async () => {
     if (!whereLeftOff.trim()) return;
@@ -161,95 +132,6 @@ export function JournalOverlay({
             <View style={styles.titleRow}>
               <Text style={styles.gameTitle}>{game.title}</Text>
             </View>
-            {onSelectSize && sizePresets.length > 0 ? (
-              <View style={styles.sizeOptionsRow} testID="journal-size-options">
-                {(() => {
-                  const matchingPresets = sizePresets.filter(
-                    (candidate) =>
-                      candidate.w === currentSize?.w &&
-                      candidate.h === currentSize?.h
-                  );
-                  const firstMatchingIndex = sizePresets.findIndex(
-                    (candidate) =>
-                      candidate.w === currentSize?.w &&
-                      candidate.h === currentSize?.h
-                  );
-                  const hasActiveSelectedPreset =
-                    selectedPresetId !== null &&
-                    matchingPresets.some((candidate) => {
-                      const candidateId =
-                        candidate.id ?? `${candidate.w}x${candidate.h}`;
-                      return (
-                        candidateId === selectedPresetId &&
-                        candidate.w === currentSize?.w &&
-                        candidate.h === currentSize?.h
-                      );
-                    });
-                  const inferredCurrentPreset =
-                    !hasActiveSelectedPreset && game.board
-                      ? inferPresetFromBoardAnchor(matchingPresets, game.board.x, game.board.y)
-                      : null;
-                  let currentPreset: JournalSizePreset | null = null;
-                  if (hasActiveSelectedPreset) {
-                    currentPreset =
-                      matchingPresets.find((candidate) => {
-                        const candidateId =
-                          candidate.id ?? `${candidate.w}x${candidate.h}`;
-                        return (
-                          candidateId === selectedPresetId &&
-                          candidate.w === currentSize?.w &&
-                          candidate.h === currentSize?.h
-                        );
-                      }) ??
-                      inferredCurrentPreset ??
-                      null;
-                  } else {
-                    currentPreset =
-                      inferredCurrentPreset ??
-                      (firstMatchingIndex >= 0 ? sizePresets[firstMatchingIndex] : null);
-                  }
-                  const currentPresetId =
-                    currentPreset ? currentPreset.id ?? `${currentPreset.w}x${currentPreset.h}` : null;
-                  const currentAnchorOffset = getPresetAnchorOffset(currentPreset);
-                  return sizePresets.map((preset, index) => {
-                    const presetId = preset.id ?? `${preset.w}x${preset.h}`;
-                    const currentSpanMatches =
-                      preset.w === currentSize?.w && preset.h === currentSize?.h;
-                    const selected =
-                      (hasActiveSelectedPreset
-                        ? selectedPresetId === presetId && currentSpanMatches
-                        : currentPresetId !== null
-                          ? currentPresetId === presetId
-                          : index === firstMatchingIndex) && currentSpanMatches;
-                    return (
-                      <Pressable
-                        key={`journal-size-${presetId}-${index}`}
-                        testID={`journal-size-${presetId}`}
-                        style={[
-                          styles.sizeOptionButton,
-                          selected && styles.sizeOptionButtonSelected,
-                        ]}
-                        onPress={() => {
-                          setSelectedPresetId(presetId);
-                          const nextAnchorOffset = getPresetAnchorOffset(preset);
-                          onSelectSize(preset, {
-                            x: nextAnchorOffset.x - currentAnchorOffset.x,
-                            y: nextAnchorOffset.y - currentAnchorOffset.y,
-                          });
-                        }}
-                      >
-                        <GridGlyph
-                          activePositions={
-                            preset.activePositions ?? getDefaultActivePositionsForSpan(preset)
-                          }
-                          selected={selected}
-                        />
-                      </Pressable>
-                    );
-                  });
-                })()}
-              </View>
-            ) : null}
 
             <Text style={styles.sectionLabel}>WHERE I LEFT OFF</Text>
             <TextInput
@@ -339,71 +221,6 @@ function SaveButton({
   );
 }
 
-function getDefaultActivePositionsForSpan(
-  span: { w: number; h: number }
-): readonly GridCellPosition[] {
-  if (span.w >= 2 && span.h >= 2) return GRID_ACTIVE_FULL_GRID;
-  if (span.w >= 2) return GRID_ACTIVE_TOP_ROW;
-  if (span.h >= 2) return GRID_ACTIVE_LEFT_COLUMN;
-  return GRID_ACTIVE_TOP_LEFT;
-}
-
-const GRID_POSITION_COORDS = {
-  "top-left": { x: 0, y: 0 },
-  "top-right": { x: 1, y: 0 },
-  "bottom-left": { x: 0, y: 1 },
-  "bottom-right": { x: 1, y: 1 },
-} as const;
-
-function getPresetAnchorOffset(
-  preset: JournalSizePreset | null
-): { x: number; y: number } {
-  if (!preset) return { x: 0, y: 0 };
-  const positions = preset.activePositions ?? getDefaultActivePositionsForSpan(preset);
-  if (positions.length === 0) return { x: 0, y: 0 };
-
-  const coords = positions.map((position) => GRID_POSITION_COORDS[position]);
-  const minX = Math.min(...coords.map((coord) => coord.x));
-  const minY = Math.min(...coords.map((coord) => coord.y));
-  return { x: minX, y: minY };
-}
-
-function inferPresetFromBoardAnchor(
-  presets: JournalSizePreset[],
-  boardX: number,
-  boardY: number
-): JournalSizePreset | null {
-  if (presets.length === 0) return null;
-  if (presets.length === 1) return presets[0];
-
-  const anchor = {
-    x: ((boardX % 2) + 2) % 2,
-    y: ((boardY % 2) + 2) % 2,
-  };
-
-  let best: {
-    preset: JournalSizePreset;
-    distance: number;
-    index: number;
-  } | null = null;
-
-  presets.forEach((preset, index) => {
-    const offset = getPresetAnchorOffset(preset);
-    const distance =
-      Math.abs(offset.x - anchor.x) + Math.abs(offset.y - anchor.y);
-
-    if (
-      !best ||
-      distance < best.distance ||
-      (distance === best.distance && index < best.index)
-    ) {
-      best = { preset, distance, index };
-    }
-  });
-
-  return best?.preset ?? null;
-}
-
 const styles = StyleSheet.create({
   overlay: {
     ...StyleSheet.absoluteFillObject,
@@ -445,26 +262,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     marginBottom: 14,
-  },
-  sizeOptionsRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-    marginBottom: 12,
-  },
-  sizeOptionButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: palette.cream.DEFAULT,
-    borderWidth: 1,
-    borderColor: palette.sage[200],
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  sizeOptionButtonSelected: {
-    borderColor: palette.sage[500],
-    backgroundColor: palette.sage[50],
   },
   sectionLabel: {
     fontSize: 10,

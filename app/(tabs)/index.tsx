@@ -27,6 +27,7 @@ import {
   BOARD_GAP,
   chooseNearestAllowedSpan,
   getBoardMetrics,
+  getBoardWidth,
   getDropTargetConflictCells,
   type GridCell,
 } from "@/lib/board";
@@ -54,6 +55,17 @@ const AUTO_SCROLL_CAP_SLOWDOWN_PX = 96;
 const HOME_BOARD_COLUMN_COUNT = 4;
 const HOME_BOARD_ROW_COUNT = 6;
 const HAPTIC_TICK_MIN_INTERVAL_MS = 45;
+const BOARD_PAGE_SWIPE_LOCK_DISTANCE_PX = 14;
+const BOARD_PAGE_SWIPE_LOCK_AXIS_RATIO = 1.3;
+const BOARD_PAGE_SWIPE_DISTANCE_PX = 68;
+const BOARD_PAGE_SWIPE_VELOCITY_PX = 0.42;
+const BOARD_PAGE_SWIPE_EDGE_RESISTANCE = 0.32;
+const BOARD_PAGE_TRACK_GAP_PX = 18;
+const BOARD_PAGE_DRAG_SWITCH_EDGE_RATIO = 0.075;
+const BOARD_PAGE_DRAG_SWITCH_MIN_PX = 34;
+const BOARD_PAGE_DRAG_SWITCH_MAX_PX = 72;
+const BOARD_PAGE_DRAG_SWITCH_DWELL_MS = 180;
+const BOARD_PAGE_DRAG_SWITCH_COOLDOWN_MS = 560;
 
 export default function HomeScreen() {
   const {
@@ -102,6 +114,15 @@ export default function HomeScreen() {
   const autoScrollFrameRef = useRef<number | null>(null);
   const autoScrollLastTsRef = useRef<number | null>(null);
   const dragTargetHapticAtRef = useRef(0);
+  const dragPointerRef = useRef<{ x: number; y: number } | null>(null);
+  const dragPageSwitchAtRef = useRef(0);
+  const dragPageSwitchEdgeIntentRef = useRef<{ direction: -1 | 1; enteredAt: number } | null>(
+    null
+  );
+  const pageTrackX = useRef(new Animated.Value(0)).current;
+  const pageGestureActiveRef = useRef(false);
+  const pageAnimationRef = useRef<Animated.CompositeAnimation | null>(null);
+  const pageAnimationInFlightRef = useRef(false);
   const dragXY = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
   const jiggle = useRef(new Animated.Value(0)).current;
   const jiggleLoopRef = useRef<Animated.CompositeAnimation | null>(null);
@@ -114,6 +135,9 @@ export default function HomeScreen() {
   const [activePage, setActivePage] = useState(currentHomePage);
   const [pageMenuOpen, setPageMenuOpen] = useState(false);
   const [manualPageCount, setManualPageCount] = useState(1);
+  const [draggingGameSnapshot, setDraggingGameSnapshot] = useState<Game | null>(null);
+  const boardWidth = useMemo(() => getBoardWidth(width), [width]);
+  const pageStride = boardWidth + BOARD_PAGE_TRACK_GAP_PX;
   const { cellWidth, rowHeight } = useMemo(
     () => getBoardMetrics(width, boardColumns),
     [width, boardColumns]
@@ -136,25 +160,34 @@ export default function HomeScreen() {
   );
   const pageCount = Math.max(pageCountFromGames, manualPageCount);
   const pageRowOffset = activePage * HOME_BOARD_ROW_COUNT;
+  const boardGamesByPage = useMemo(() => {
+    const byPage = new Map<number, Game[]>();
+    laidOutBoardGames.forEach((game) => {
+      if (!game.board) {
+        const pageZeroGames = byPage.get(0) ?? [];
+        pageZeroGames.push(game);
+        byPage.set(0, pageZeroGames);
+        return;
+      }
+
+      const sourceRow = Math.max(0, game.board.y);
+      const pageIndex = Math.floor(sourceRow / HOME_BOARD_ROW_COUNT);
+      const pageStartRow = pageIndex * HOME_BOARD_ROW_COUNT;
+      const pageGames = byPage.get(pageIndex) ?? [];
+      pageGames.push({
+        ...game,
+        board: {
+          ...game.board,
+          y: Math.max(0, sourceRow - pageStartRow),
+        },
+      });
+      byPage.set(pageIndex, pageGames);
+    });
+    return byPage;
+  }, [laidOutBoardGames]);
   const boardGames = useMemo(
-    () =>
-      laidOutBoardGames
-        .filter((game) => {
-          if (!game.board) return activePage === 0;
-          const pageIndex = Math.floor(Math.max(0, game.board.y) / HOME_BOARD_ROW_COUNT);
-          return pageIndex === activePage;
-        })
-        .map((game) => {
-          if (!game.board) return game;
-          return {
-            ...game,
-            board: {
-              ...game.board,
-              y: Math.max(0, game.board.y - pageRowOffset),
-            },
-          };
-        }),
-    [laidOutBoardGames, activePage, pageRowOffset]
+    () => boardGamesByPage.get(activePage) ?? [],
+    [boardGamesByPage, activePage]
   );
   const boardHeight =
     HOME_BOARD_ROW_COUNT > 0
@@ -265,17 +298,69 @@ export default function HomeScreen() {
     }
   }, [laidOutBoardGames, activeGame]);
 
-  const handleCreatePage = useCallback(() => {
-    const nextPageCount = pageCount + 1;
-    setManualPageCount(nextPageCount);
-    setActivePage(nextPageCount - 1);
-    setPageMenuOpen(false);
-  }, [pageCount]);
-
-  const handleSelectPage = useCallback((pageIndex: number) => {
-    setActivePage(pageIndex);
-    setPageMenuOpen(false);
+  const stopPageTrackAnimation = useCallback(() => {
+    pageAnimationRef.current?.stop();
+    pageAnimationRef.current = null;
+    pageAnimationInFlightRef.current = false;
   }, []);
+
+  const animatePageTrackTo = useCallback(
+    (toValue: number, onSettled?: () => void) => {
+      stopPageTrackAnimation();
+      if (process.env.NODE_ENV === "test") {
+        pageTrackX.setValue(toValue);
+        onSettled?.();
+        return;
+      }
+      pageAnimationInFlightRef.current = true;
+      const animation = Animated.spring(pageTrackX, {
+        toValue,
+        damping: 32,
+        stiffness: 210,
+        mass: 0.9,
+        useNativeDriver: true,
+      });
+      pageAnimationRef.current = animation;
+      animation.start(() => {
+        if (pageAnimationRef.current === animation) {
+          pageAnimationRef.current = null;
+          pageAnimationInFlightRef.current = false;
+        }
+        onSettled?.();
+      });
+    },
+    [pageTrackX, stopPageTrackAnimation]
+  );
+
+  const handleGoToPage = useCallback(
+    (pageIndex: number) => {
+      const nextPage = Math.max(0, Math.min(pageCount - 1, pageIndex));
+      setActivePage(nextPage);
+      animatePageTrackTo(-nextPage * pageStride);
+    },
+    [animatePageTrackTo, pageCount, pageStride]
+  );
+
+  const handleCreatePage = useCallback(() => {
+    const nextPage = pageCount;
+    setManualPageCount(pageCount + 1);
+    setPageMenuOpen(false);
+    setActivePage(nextPage);
+    animatePageTrackTo(-nextPage * pageStride);
+  }, [animatePageTrackTo, pageCount, pageStride]);
+
+  const handleSelectPage = useCallback(
+    (pageIndex: number) => {
+      setPageMenuOpen(false);
+      handleGoToPage(pageIndex);
+    },
+    [handleGoToPage]
+  );
+
+  useEffect(() => {
+    if (pageGestureActiveRef.current || pageAnimationInFlightRef.current) return;
+    pageTrackX.setValue(-activePage * pageStride);
+  }, [activePage, pageStride, pageTrackX]);
 
   const cancelAutoScroll = useCallback(() => {
     if (autoScrollFrameRef.current !== null) {
@@ -302,12 +387,17 @@ export default function HomeScreen() {
     dropTargetRef.current = null;
     dropTargetKeyRef.current = "";
     dragTargetHapticAtRef.current = 0;
+    dragPointerRef.current = null;
+    dragPageSwitchAtRef.current = 0;
+    dragPageSwitchEdgeIntentRef.current = null;
+    setDraggingGameSnapshot(null);
     dragStartScrollOffsetRef.current = scrollOffsetRef.current;
   }, [cancelAutoScroll, jiggle]);
 
   useEffect(() => () => {
     cancelAutoScroll();
-  }, [cancelAutoScroll]);
+    stopPageTrackAnimation();
+  }, [cancelAutoScroll, stopPageTrackAnimation]);
 
   useEffect(() => {
     jiggleLoopRef.current?.stop();
@@ -328,7 +418,7 @@ export default function HomeScreen() {
   const updateDropTarget = useCallback(
     (left: number, top: number) => {
       if (!draggingId) return;
-      const draggingGame = boardGames.find((game) => game.id === draggingId);
+      const draggingGame = laidOutBoardGames.find((game) => game.id === draggingId);
       if (!draggingGame) return;
 
       const strideX = cellWidth + BOARD_GAP;
@@ -440,6 +530,7 @@ export default function HomeScreen() {
       cellWidth,
       rowHeight,
       boardGames,
+      laidOutBoardGames,
       animateDropTargetTo,
     ]
   );
@@ -548,6 +639,79 @@ export default function HomeScreen() {
     [tickAutoScroll]
   );
 
+  const maybeSwitchPageWhileDragging = useCallback(
+    (pointerX: number, pointerY: number) => {
+      if (!draggingId || pageCount <= 1) return;
+      const edgeThreshold = Math.min(
+        BOARD_PAGE_DRAG_SWITCH_MAX_PX,
+        Math.max(BOARD_PAGE_DRAG_SWITCH_MIN_PX, width * BOARD_PAGE_DRAG_SWITCH_EDGE_RATIO)
+      );
+
+      let direction: -1 | 1 | 0 = 0;
+      if (pointerX <= edgeThreshold) direction = -1;
+      if (pointerX >= width - edgeThreshold) direction = 1;
+      if (direction === 0) {
+        dragPageSwitchEdgeIntentRef.current = null;
+        return;
+      }
+
+      const nextPage = Math.max(0, Math.min(pageCount - 1, activePage + direction));
+      const now = Date.now();
+      const priorIntent = dragPageSwitchEdgeIntentRef.current;
+      if (!priorIntent || priorIntent.direction !== direction) {
+        dragPageSwitchEdgeIntentRef.current = { direction, enteredAt: now };
+        return;
+      }
+      if (now - priorIntent.enteredAt < BOARD_PAGE_DRAG_SWITCH_DWELL_MS) return;
+      if (nextPage === activePage) return;
+      if (now - dragPageSwitchAtRef.current < BOARD_PAGE_DRAG_SWITCH_COOLDOWN_MS) return;
+
+      dragPageSwitchAtRef.current = now;
+      dragPageSwitchEdgeIntentRef.current = { direction, enteredAt: now };
+      dragPointerRef.current = { x: pointerX, y: pointerY };
+      setPageMenuOpen(false);
+      setActivePage(nextPage);
+      animatePageTrackTo(-nextPage * pageStride);
+      void Haptics.selectionAsync().catch(() => {});
+    },
+    [draggingId, pageCount, width, activePage, pageStride, animatePageTrackTo]
+  );
+
+  useEffect(() => {
+    if (!draggingId) return;
+    const pointer = dragPointerRef.current;
+    if (!pointer) return;
+
+    const frame = requestAnimationFrame(() => {
+      boardRef.current?.measureInWindow((x, y) => {
+        boardOriginRef.current = { x, y };
+        positionDragAtPointer(pointer.x, pointer.y);
+      });
+    });
+
+    return () => {
+      cancelAnimationFrame(frame);
+    };
+  }, [activePage, draggingId, positionDragAtPointer]);
+
+  useEffect(() => {
+    if (!draggingId) return;
+
+    let frame: number;
+    const tick = () => {
+      const pointer = dragPointerRef.current;
+      if (pointer) {
+        maybeSwitchPageWhileDragging(pointer.x, pointer.y);
+      }
+      frame = requestAnimationFrame(tick);
+    };
+
+    frame = requestAnimationFrame(tick);
+    return () => {
+      cancelAnimationFrame(frame);
+    };
+  }, [draggingId, maybeSwitchPageWhileDragging]);
+
   const handleDrop = useCallback(async () => {
     const currentTarget = dropTargetRef.current;
     if (!draggingId || !currentTarget) return;
@@ -568,31 +732,137 @@ export default function HomeScreen() {
     stopDragging,
   ]);
 
+  const getSwipeDxWithResistance = useCallback(
+    (dx: number) => {
+      if (dx > 0 && activePage <= 0) return dx * BOARD_PAGE_SWIPE_EDGE_RESISTANCE;
+      if (dx < 0 && activePage >= pageCount - 1) return dx * BOARD_PAGE_SWIPE_EDGE_RESISTANCE;
+      return dx;
+    },
+    [activePage, pageCount]
+  );
+
+  const handlePageSwipeMove = useCallback(
+    (gestureState?: { dx?: number }) => {
+      if (draggingId || pageMenuOpen || activeGame || pageCount <= 1) return;
+      const rawDx = gestureState?.dx ?? 0;
+      const adjustedDx = getSwipeDxWithResistance(rawDx);
+      pageGestureActiveRef.current = true;
+      stopPageTrackAnimation();
+      pageTrackX.setValue(-activePage * pageStride + adjustedDx);
+    },
+    [
+      draggingId,
+      pageMenuOpen,
+      activeGame,
+      pageCount,
+      getSwipeDxWithResistance,
+      stopPageTrackAnimation,
+      pageTrackX,
+      activePage,
+      pageStride,
+    ]
+  );
+
+  const handlePageSwipeRelease = useCallback(
+    (gestureState?: { dx?: number; vx?: number }) => {
+      if (draggingId || pageMenuOpen || activeGame || pageCount <= 1) {
+        pageGestureActiveRef.current = false;
+        return;
+      }
+
+      pageGestureActiveRef.current = false;
+      const dx = gestureState?.dx ?? 0;
+      const vx = gestureState?.vx ?? 0;
+      const canGoPrev = activePage > 0;
+      const canGoNext = activePage < pageCount - 1;
+      const shouldAdvance =
+        dx <= -BOARD_PAGE_SWIPE_DISTANCE_PX || vx <= -BOARD_PAGE_SWIPE_VELOCITY_PX;
+      const shouldRetreat =
+        dx >= BOARD_PAGE_SWIPE_DISTANCE_PX || vx >= BOARD_PAGE_SWIPE_VELOCITY_PX;
+
+      let nextPage = activePage;
+      if (shouldAdvance && canGoNext) nextPage = activePage + 1;
+      if (shouldRetreat && canGoPrev) nextPage = activePage - 1;
+
+      animatePageTrackTo(-nextPage * pageStride);
+      if (nextPage !== activePage) {
+        setPageMenuOpen(false);
+        setActivePage(nextPage);
+        void Haptics.selectionAsync().catch(() => {});
+      }
+    },
+    [
+      draggingId,
+      pageMenuOpen,
+      activeGame,
+      pageCount,
+      activePage,
+      pageStride,
+      animatePageTrackTo,
+    ]
+  );
+
   const boardPanResponder = useMemo(
     () =>
       PanResponder.create({
         onStartShouldSetPanResponderCapture: () => draggingId !== null,
-        onMoveShouldSetPanResponderCapture: () => draggingId !== null,
+        onMoveShouldSetPanResponderCapture: (_evt, gestureState) => {
+          if (draggingId !== null) return true;
+          if (pageMenuOpen || activeGame || pageCount <= 1 || pageAnimationInFlightRef.current) {
+            return false;
+          }
+          const dx = Math.abs(gestureState?.dx ?? 0);
+          const dy = Math.abs(gestureState?.dy ?? 0);
+          if (dx < BOARD_PAGE_SWIPE_LOCK_DISTANCE_PX) return false;
+          return dx > dy * BOARD_PAGE_SWIPE_LOCK_AXIS_RATIO;
+        },
         onPanResponderTerminationRequest: () => false,
         onPanResponderMove: (_evt, gestureState) => {
-          if (!draggingId) return;
-          queueAutoScrollForPointer(gestureState.moveX, gestureState.moveY);
-          positionDragAtPointer(gestureState.moveX, gestureState.moveY);
+          if (draggingId) {
+            const pointerX = gestureState.moveX;
+            const pointerY = gestureState.moveY;
+            dragPointerRef.current = { x: pointerX, y: pointerY };
+            queueAutoScrollForPointer(pointerX, pointerY);
+            positionDragAtPointer(pointerX, pointerY);
+            maybeSwitchPageWhileDragging(pointerX, pointerY);
+            return;
+          }
+          handlePageSwipeMove(gestureState);
         },
-        onPanResponderRelease: () => {
-          void handleDrop();
+        onPanResponderRelease: (_evt, gestureState) => {
+          if (draggingId) {
+            void handleDrop();
+            return;
+          }
+          handlePageSwipeRelease(gestureState);
         },
         onPanResponderTerminate: () => {
-          stopDragging();
+          if (draggingId) {
+            stopDragging();
+            return;
+          }
+          handlePageSwipeRelease();
         },
       }),
-    [draggingId, handleDrop, positionDragAtPointer, queueAutoScrollForPointer, stopDragging]
+    [
+      draggingId,
+      pageMenuOpen,
+      activeGame,
+      pageCount,
+      handleDrop,
+      handlePageSwipeMove,
+      handlePageSwipeRelease,
+      maybeSwitchPageWhileDragging,
+      positionDragAtPointer,
+      queueAutoScrollForPointer,
+      stopDragging,
+    ]
   );
 
-  const draggingGame = useMemo(
-    () => (draggingId ? boardGames.find((game) => game.id === draggingId) ?? null : null),
-    [boardGames, draggingId]
-  );
+  const draggingGame = useMemo(() => {
+    if (!draggingId) return null;
+    return laidOutBoardGames.find((game) => game.id === draggingId) ?? draggingGameSnapshot;
+  }, [draggingId, laidOutBoardGames, draggingGameSnapshot]);
 
   const renderCardVisual = useCallback((game: Game, index: number) => {
     const ticketType = game.ticketType ?? DEFAULT_TICKET_TYPE;
@@ -622,6 +892,239 @@ export default function HomeScreen() {
   const handleBoardContentHeightChange = useCallback((contentHeight: number) => {
     scrollContentHeightRef.current = contentHeight;
   }, []);
+
+  const renderBoardPage = (pageIndex: number) => {
+    const pageGames = boardGamesByPage.get(pageIndex) ?? [];
+    const isActivePage = pageIndex === activePage;
+
+    return (
+      <View
+        key={`page-${pageIndex + 1}`}
+        style={[
+          styles.pagePane,
+          { width: boardWidth },
+          pageIndex < pageCount - 1 ? styles.pagePaneGap : null,
+        ]}
+        pointerEvents={isActivePage ? "auto" : "none"}
+      >
+        {pageGames.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyText}>
+              No games pinned yet.{"\n"}Add one to start your journey!
+            </Text>
+          </View>
+        ) : (
+          <View
+            ref={isActivePage ? boardRef : undefined}
+            style={[styles.board, { height: boardHeight }]}
+            onLayout={
+              isActivePage
+                ? () => {
+                    boardRef.current?.measureInWindow((x, y) => {
+                      boardOriginRef.current = { x, y };
+                    });
+                  }
+                : undefined
+            }
+          >
+            {pageGames.map((game, index) => {
+              const board = game.board ?? { x: 0, y: index, w: 1, h: 1 };
+              const ticketType = game.ticketType ?? DEFAULT_TICKET_TYPE;
+              const slotWidth = board.w * cellWidth + (board.w - 1) * BOARD_GAP;
+              const slotHeight = board.h * rowHeight + (board.h - 1) * BOARD_GAP;
+              const scale = getCardRenderScale(ticketType);
+              const slotLeft = board.x * (cellWidth + BOARD_GAP);
+              const slotTop = board.y * (rowHeight + BOARD_GAP);
+              const isDragging = isActivePage && draggingId === game.id;
+
+              return (
+                <View key={game.id}>
+                  <Pressable
+                    disabled={!isActivePage}
+                    onPress={
+                      isActivePage
+                        ? () => {
+                            if (consumeNextPress.current || draggingId) {
+                              consumeNextPress.current = false;
+                              return;
+                            }
+                            handleAddNote(game.id);
+                          }
+                        : undefined
+                    }
+                    onLongPress={
+                      isActivePage
+                        ? (event) => {
+                            const locationX = event.nativeEvent.locationX;
+                            const locationY = event.nativeEvent.locationY;
+                            setPageMenuOpen(false);
+                            consumeNextPress.current = true;
+                            dragStartScrollOffsetRef.current = scrollOffsetRef.current;
+                            dragTargetHapticAtRef.current = 0;
+                            dragPageSwitchAtRef.current = 0;
+                            dragPageSwitchEdgeIntentRef.current = null;
+                            boardRef.current?.measureInWindow((x, y) => {
+                              boardOriginRef.current = { x, y };
+                            });
+                            dragOffsetRef.current = { x: locationX, y: locationY };
+                            dragXY.setValue({ x: slotLeft, y: slotTop });
+                            setDraggingId(game.id);
+                            setDraggingGameSnapshot(game);
+                            const lockedSpan = constrainSpanForCard(
+                              ticketType,
+                              { w: board.w, h: board.h },
+                              boardColumns
+                            );
+                            dragBaseSpanRef.current = lockedSpan;
+                            setDragVisualSpan(lockedSpan);
+                            setDragVisualScale(scale);
+                            setDragIndex(index);
+                            const initialTarget = {
+                              x: board.x,
+                              y: Math.min(
+                                board.y,
+                                Math.max(0, HOME_BOARD_ROW_COUNT - lockedSpan.h)
+                              ),
+                              w: lockedSpan.w,
+                              h: lockedSpan.h,
+                            };
+                            const initialConflictCells = getDropTargetConflictCells(
+                              boardGames,
+                              game.id,
+                              initialTarget,
+                              boardColumns
+                            );
+                            dropTargetConflictKeyRef.current = initialConflictCells
+                              .map((cell) => `${cell.x},${cell.y}`)
+                              .join("|");
+                            setDropTargetConflictCells(initialConflictCells);
+                            targetSlotRef.current = initialTarget;
+                            dropTargetKeyRef.current = `${initialTarget.x}-${initialTarget.y}-${initialTarget.w}-${initialTarget.h}`;
+                            setDropTarget(initialTarget);
+                            dropTargetRef.current = initialTarget;
+                            animateDropTargetTo(initialTarget, true);
+                          }
+                        : undefined
+                    }
+                    delayLongPress={220}
+                    testID={isActivePage ? `playing-card-add-${game.id}` : undefined}
+                    accessibilityLabel={
+                      isActivePage ? `Update bookmark for ${game.title}` : undefined
+                    }
+                    accessibilityRole={isActivePage ? "button" : undefined}
+                    style={[
+                      styles.boardItem,
+                      {
+                        left: slotLeft,
+                        top: slotTop,
+                        width: slotWidth,
+                        height: slotHeight,
+                        zIndex: isDragging ? 1 : 2,
+                        opacity: isDragging ? 0.18 : 1,
+                      },
+                    ]}
+                  >
+                    <View
+                      style={styles.slotCenter}
+                      testID={isActivePage ? `playing-card-${game.id}` : undefined}
+                    >
+                      <Animated.View
+                        style={{
+                          transform: [
+                            { scale },
+                            {
+                              rotate: draggingId === game.id
+                                ? "0.8deg"
+                                : draggingId
+                                  ? jiggleRotation
+                                  : "0deg",
+                            },
+                          ],
+                        }}
+                      >
+                        {renderCardVisual(game, index)}
+                      </Animated.View>
+                    </View>
+                  </Pressable>
+                </View>
+              );
+            })}
+            {isActivePage && draggingGame ? (
+              <View pointerEvents="none" style={styles.gridOverlay}>
+                {Array.from({ length: HOME_BOARD_ROW_COUNT * boardColumns }).map((_, index) => {
+                  const row = Math.floor(index / boardColumns);
+                  const col = index % boardColumns;
+                  return (
+                    <View
+                      key={`grid-${col}-${row}`}
+                      style={[
+                        styles.gridCell,
+                        {
+                          left: col * (cellWidth + BOARD_GAP),
+                          top: row * (rowHeight + BOARD_GAP),
+                          width: cellWidth,
+                          height: rowHeight,
+                        },
+                      ]}
+                    />
+                  );
+                })}
+                {dropTarget ? (
+                  <Animated.View
+                    testID="drop-target-indicator"
+                    style={[
+                      styles.dropTarget,
+                      styles.dropTargetActive,
+                      {
+                        left: dropTargetLeft,
+                        top: dropTargetTop,
+                        width: dropTargetWidth,
+                        height: dropTargetHeight,
+                      },
+                    ]}
+                  />
+                ) : null}
+                {dropTargetConflictCells.map((cell) => (
+                  <View
+                    key={`drop-target-conflict-${cell.x}-${cell.y}`}
+                    testID={`drop-target-conflict-${cell.x}-${cell.y}`}
+                    style={[
+                      styles.dropTargetConflictCell,
+                      {
+                        left: cell.x * (cellWidth + BOARD_GAP),
+                        top: cell.y * (rowHeight + BOARD_GAP),
+                        width: cellWidth,
+                        height: rowHeight,
+                      },
+                    ]}
+                  />
+                ))}
+              </View>
+            ) : null}
+            {isActivePage && draggingGame ? (
+              <Animated.View
+                pointerEvents="none"
+                style={[
+                  styles.dragOverlay,
+                  {
+                    width: dragSlotWidth,
+                    height: dragSlotHeight,
+                    transform: [{ translateX: dragXY.x }, { translateY: dragXY.y }],
+                  },
+                ]}
+              >
+                <View style={styles.slotCenter}>
+                  <View style={{ transform: [{ scale: dragVisualScale }, { rotate: "0.8deg" }] }}>
+                    {renderCardVisual(draggingGame, dragIndex)}
+                  </View>
+                </View>
+              </Animated.View>
+            ) : null}
+          </View>
+        )}
+      </View>
+    );
+  };
 
   return (
     <>
@@ -703,207 +1206,28 @@ export default function HomeScreen() {
           </Text>
         </View>
 
-        {loading ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator color={palette.sage[400]} size="large" />
-          </View>
-        ) : boardGames.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>
-              No games pinned yet.{"\n"}Add one to start your journey!
-            </Text>
-          </View>
-        ) : (
-          <View
-            ref={boardRef}
-            style={[styles.board, { height: boardHeight }]}
-            onLayout={() => {
-              boardRef.current?.measureInWindow((x, y) => {
-                boardOriginRef.current = { x, y };
-              });
-            }}
-            {...boardPanResponder.panHandlers}
-          >
-            {boardGames.map((game, index) => {
-              const board = game.board ?? { x: 0, y: index, w: 1, h: 1 };
-              const ticketType = game.ticketType ?? DEFAULT_TICKET_TYPE;
-              const slotWidth = board.w * cellWidth + (board.w - 1) * BOARD_GAP;
-              const slotHeight = board.h * rowHeight + (board.h - 1) * BOARD_GAP;
-              const scale = getCardRenderScale(ticketType);
-              const slotLeft = board.x * (cellWidth + BOARD_GAP);
-              const slotTop = board.y * (rowHeight + BOARD_GAP);
-              const isDragging = draggingId === game.id;
-
-              return (
-                <View key={game.id}>
-                  <Pressable
-                    onPress={() => {
-                      if (consumeNextPress.current || draggingId) {
-                        consumeNextPress.current = false;
-                        return;
-                      }
-                      handleAddNote(game.id);
-                    }}
-                    onLongPress={(event) => {
-                      const locationX = event.nativeEvent.locationX;
-                      const locationY = event.nativeEvent.locationY;
-                      setPageMenuOpen(false);
-                      consumeNextPress.current = true;
-                      dragStartScrollOffsetRef.current = scrollOffsetRef.current;
-                      dragTargetHapticAtRef.current = 0;
-                      boardRef.current?.measureInWindow((x, y) => {
-                        boardOriginRef.current = { x, y };
-                      });
-                      dragOffsetRef.current = { x: locationX, y: locationY };
-                      dragXY.setValue({ x: slotLeft, y: slotTop });
-                      setDraggingId(game.id);
-                      const lockedSpan = constrainSpanForCard(
-                        ticketType,
-                        { w: board.w, h: board.h },
-                        boardColumns
-                      );
-                      dragBaseSpanRef.current = lockedSpan;
-                      setDragVisualSpan(lockedSpan);
-                      setDragVisualScale(scale);
-                      setDragIndex(index);
-                      const initialTarget = {
-                        x: board.x,
-                        y: Math.min(
-                          board.y,
-                          Math.max(0, HOME_BOARD_ROW_COUNT - lockedSpan.h)
-                        ),
-                        w: lockedSpan.w,
-                        h: lockedSpan.h,
-                      };
-                      const initialConflictCells = getDropTargetConflictCells(
-                        boardGames,
-                        game.id,
-                        initialTarget,
-                        boardColumns
-                      );
-                      dropTargetConflictKeyRef.current = initialConflictCells
-                        .map((cell) => `${cell.x},${cell.y}`)
-                        .join("|");
-                      setDropTargetConflictCells(initialConflictCells);
-                      targetSlotRef.current = initialTarget;
-                      dropTargetKeyRef.current = `${initialTarget.x}-${initialTarget.y}-${initialTarget.w}-${initialTarget.h}`;
-                      setDropTarget(initialTarget);
-                      dropTargetRef.current = initialTarget;
-                      animateDropTargetTo(initialTarget, true);
-                    }}
-                    delayLongPress={220}
-                    testID={`playing-card-add-${game.id}`}
-                    accessibilityLabel={`Update bookmark for ${game.title}`}
-                    accessibilityRole="button"
-                    style={[
-                      styles.boardItem,
-                      {
-                        left: slotLeft,
-                        top: slotTop,
-                        width: slotWidth,
-                        height: slotHeight,
-                        zIndex: isDragging ? 1 : 2,
-                        opacity: isDragging ? 0.18 : 1,
-                      },
-                    ]}
-                  >
-                    <View style={styles.slotCenter} testID={`playing-card-${game.id}`}>
-                      <Animated.View
-                        style={{
-                          transform: [
-                            { scale },
-                            {
-                              rotate: draggingId === game.id
-                                ? "0.8deg"
-                                : draggingId
-                                  ? jiggleRotation
-                                  : "0deg",
-                            },
-                          ],
-                        }}
-                      >
-                        {renderCardVisual(game, index)}
-                      </Animated.View>
-                    </View>
-                  </Pressable>
-                </View>
-              );
-            })}
-            {draggingGame ? (
-              <View pointerEvents="none" style={styles.gridOverlay}>
-                {Array.from({ length: HOME_BOARD_ROW_COUNT * boardColumns }).map((_, index) => {
-                  const row = Math.floor(index / boardColumns);
-                  const col = index % boardColumns;
-                  return (
-                    <View
-                      key={`grid-${col}-${row}`}
-                      style={[
-                        styles.gridCell,
-                        {
-                          left: col * (cellWidth + BOARD_GAP),
-                          top: row * (rowHeight + BOARD_GAP),
-                          width: cellWidth,
-                          height: rowHeight,
-                        },
-                      ]}
-                    />
-                  );
-                })}
-                {dropTarget ? (
-                  <Animated.View
-                    testID="drop-target-indicator"
-                    style={[
-                      styles.dropTarget,
-                      styles.dropTargetActive,
-                      {
-                        left: dropTargetLeft,
-                        top: dropTargetTop,
-                        width: dropTargetWidth,
-                        height: dropTargetHeight,
-                      },
-                    ]}
-                  />
-                ) : null}
-                {dropTargetConflictCells.map((cell) => (
-                  <View
-                    key={`drop-target-conflict-${cell.x}-${cell.y}`}
-                    testID={`drop-target-conflict-${cell.x}-${cell.y}`}
-                    style={[
-                      styles.dropTargetConflictCell,
-                      {
-                        left: cell.x * (cellWidth + BOARD_GAP),
-                        top: cell.y * (rowHeight + BOARD_GAP),
-                        width: cellWidth,
-                        height: rowHeight,
-                      },
-                    ]}
-                  />
-                ))}
-              </View>
-            ) : null}
-            {draggingGame ? (
+        <View style={[styles.pageContent, { width: boardWidth }]} {...boardPanResponder.panHandlers}>
+          {loading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator color={palette.sage[400]} size="large" />
+            </View>
+          ) : (
+            <View style={styles.pageViewport}>
               <Animated.View
-                pointerEvents="none"
                 style={[
-                  styles.dragOverlay,
+                  styles.pageTrack,
                   {
-                    width: dragSlotWidth,
-                    height: dragSlotHeight,
-                    transform: [{ translateX: dragXY.x }, { translateY: dragXY.y }],
+                    transform: [{ translateX: pageTrackX }],
                   },
                 ]}
               >
-                <View style={styles.slotCenter}>
-                  <View
-                    style={{ transform: [{ scale: dragVisualScale }, { rotate: "0.8deg" }] }}
-                  >
-                    {renderCardVisual(draggingGame, dragIndex)}
-                  </View>
-                </View>
+                {Array.from({ length: pageCount }).map((_, pageIndex) =>
+                  renderBoardPage(pageIndex)
+                )}
               </Animated.View>
-            ) : null}
-          </View>
-        )}
+            </View>
+          )}
+        </View>
       </BoardViewport>
 
       {activeGame && (
@@ -1020,6 +1344,22 @@ const styles = StyleSheet.create({
     opacity: 0.7,
     textAlign: "center",
     lineHeight: 22,
+  },
+  pageContent: {
+    minHeight: 1,
+  },
+  pageViewport: {
+    overflow: "hidden",
+  },
+  pageTrack: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+  },
+  pagePane: {
+    minHeight: 1,
+  },
+  pagePaneGap: {
+    marginRight: BOARD_PAGE_TRACK_GAP_PX,
   },
   board: {
     position: "relative",

@@ -168,6 +168,77 @@ describe("[dragdrop-regression] HomeScreen", () => {
     expect(screen.getByText("1 game | Page 2 of 2")).toBeTruthy();
   });
 
+  it("captures horizontal swipes to navigate pages", async () => {
+    mockUseGamesContext.mockReturnValue(
+      makeContext({
+        loading: false,
+        playingGames: [
+          {
+            id: "swipe-nav-1",
+            title: "Swipe Nav One",
+            status: "playing",
+            ticketType: "minimal",
+            board: { x: 0, y: 0, w: 1, h: 1, columns: 4 },
+            notes: [],
+          },
+          {
+            id: "swipe-nav-2",
+            title: "Swipe Nav Two",
+            status: "playing",
+            ticketType: "minimal",
+            board: { x: 0, y: 6, w: 1, h: 1, columns: 4 },
+            notes: [],
+          },
+        ],
+      })
+    );
+
+    render(<HomeScreen />);
+    expect(screen.getByText("1 game | Page 1 of 2")).toBeTruthy();
+
+    expect(
+      capturedPanResponderConfig.onMoveShouldSetPanResponderCapture({}, { dx: -120, dy: 20 })
+    ).toBe(true);
+
+    await act(async () => {
+      capturedPanResponderConfig.onPanResponderRelease({}, { dx: -120, vx: -0.7 });
+    });
+
+    await waitFor(() => expect(screen.getByText("1 game | Page 2 of 2")).toBeTruthy());
+  });
+
+  it("does not capture vertical gestures for page navigation", () => {
+    mockUseGamesContext.mockReturnValue(
+      makeContext({
+        loading: false,
+        playingGames: [
+          {
+            id: "vertical-nav-1",
+            title: "Vertical Nav One",
+            status: "playing",
+            ticketType: "minimal",
+            board: { x: 0, y: 0, w: 1, h: 1, columns: 4 },
+            notes: [],
+          },
+          {
+            id: "vertical-nav-2",
+            title: "Vertical Nav Two",
+            status: "playing",
+            ticketType: "minimal",
+            board: { x: 0, y: 6, w: 1, h: 1, columns: 4 },
+            notes: [],
+          },
+        ],
+      })
+    );
+
+    render(<HomeScreen />);
+    expect(
+      capturedPanResponderConfig.onMoveShouldSetPanResponderCapture({}, { dx: 18, dy: 110 })
+    ).toBe(false);
+    expect(screen.getByText("1 game | Page 1 of 2")).toBeTruthy();
+  });
+
   it("opens journal overlay from card press and saves note", async () => {
     mockUseGamesContext.mockReturnValue(
       makeContext({
@@ -424,6 +495,66 @@ describe("[dragdrop-regression] HomeScreen", () => {
       await waitFor(() =>
         expect(capturedPanResponderConfig.onMoveShouldSetPanResponderCapture()).toBe(true)
       );
+
+      await act(async () => {
+        capturedPanResponderConfig.onPanResponderRelease();
+      });
+
+      await waitFor(() => expect(mockMoveGameToBoardTarget).toHaveBeenCalled());
+      const [, target] =
+        mockMoveGameToBoardTarget.mock.calls[mockMoveGameToBoardTarget.mock.calls.length - 1];
+      expect(target.y).toBeGreaterThanOrEqual(6);
+    } finally {
+      windowSpy.mockRestore();
+    }
+  });
+
+  it("switches to the next page while dragging near the right edge", async () => {
+    const windowSpy = jest
+      .spyOn(ReactNative, "useWindowDimensions")
+      .mockReturnValue({ width: 232, height: 900, scale: 2, fontScale: 1 });
+
+    try {
+      mockUseGamesContext.mockReturnValue(
+        makeContext({
+          loading: false,
+          playingGames: [
+            {
+              id: "cross-page-drag",
+              title: "Cross Page Drag",
+              status: "playing",
+              ticketType: "minimal",
+              board: { x: 0, y: 0, w: 1, h: 1, columns: 4 },
+              notes: [],
+            },
+            {
+              id: "cross-page-target",
+              title: "Cross Page Target",
+              status: "playing",
+              ticketType: "minimal",
+              board: { x: 1, y: 6, w: 1, h: 1, columns: 4 },
+              notes: [],
+            },
+          ],
+        })
+      );
+
+      render(<HomeScreen />);
+      expect(screen.getByText("1 game | Page 1 of 2")).toBeTruthy();
+
+      fireEvent(screen.getByTestId("playing-card-add-cross-page-drag"), "longPress", {
+        nativeEvent: { locationX: 8, locationY: 8 },
+      });
+
+      await waitFor(() =>
+        expect(capturedPanResponderConfig.onMoveShouldSetPanResponderCapture()).toBe(true)
+      );
+
+      await act(async () => {
+        capturedPanResponderConfig.onPanResponderMove({}, { moveX: 740, moveY: 110 });
+      });
+
+      await waitFor(() => expect(screen.getByText("1 game | Page 2 of 2")).toBeTruthy());
 
       await act(async () => {
         capturedPanResponderConfig.onPanResponderRelease();

@@ -62,6 +62,10 @@ jest.mock("@/components/journal-overlay", () => ({
           testID="mock-journal-size"
           onPress={() => onSelectSize?.({ id: "full-grid", w: 2, h: 2 }, { x: 1, y: 0 })}
         />
+        <Pressable
+          testID="mock-journal-size-same-span"
+          onPress={() => onSelectSize?.({ id: "top-right", w: 1, h: 1 }, { x: 1, y: 0 })}
+        />
         <Pressable testID="mock-journal-close" onPress={onClose} />
       </View>
     );
@@ -153,6 +157,37 @@ describe("HomeScreen", () => {
         whereLeftOff: "Saved checkpoint",
         quickThought: "Nice loop",
       })
+    );
+  });
+
+  it("applies same-span resize anchor movement from journal overlay", async () => {
+    mockUseGamesContext.mockReturnValue(
+      makeContext({
+        loading: false,
+        playingGames: [
+          {
+            id: "game-anchor",
+            title: "Anchor Move",
+            status: "playing",
+            ticketType: "minimal",
+            board: { x: 0, y: 0, w: 1, h: 1, columns: 4 },
+            notes: [],
+          },
+        ],
+      })
+    );
+
+    render(<HomeScreen />);
+    fireEvent.press(screen.getByTestId("playing-card-add-game-anchor"));
+    fireEvent.press(screen.getByTestId("mock-journal-size-same-span"));
+
+    await waitFor(() =>
+      expect(mockSetGameSpanPreset).toHaveBeenCalledWith(
+        "game-anchor",
+        { w: 1, h: 1 },
+        4,
+        { x: 1, y: 0 }
+      )
     );
   });
 
@@ -291,6 +326,62 @@ describe("HomeScreen", () => {
       capturedPanResponderConfig.onPanResponderTerminate();
     });
   });
+
+  it.each([
+    {
+      id: "drag-wide",
+      title: "Drag Wide",
+      ticketType: "ticket" as const,
+      board: { x: 0, y: 0, w: 2, h: 1, columns: 4 },
+      expectedSpan: { w: 2, h: 1 },
+    },
+    {
+      id: "drag-tall",
+      title: "Drag Tall",
+      ticketType: "minimal" as const,
+      board: { x: 0, y: 0, w: 1, h: 2, columns: 4 },
+      expectedSpan: { w: 1, h: 2 },
+    },
+  ])(
+    "preserves span during drag-drop for $id",
+    async ({ id, title, ticketType, board, expectedSpan }) => {
+      mockUseGamesContext.mockReturnValue(
+        makeContext({
+          loading: false,
+          playingGames: [
+            {
+              id,
+              title,
+              status: "playing",
+              ticketType,
+              board,
+              notes: [],
+            },
+          ],
+        })
+      );
+
+      render(<HomeScreen />);
+      expect(capturedPanResponderConfig).toBeTruthy();
+
+      fireEvent(screen.getByTestId(`playing-card-add-${id}`), "longPress", {
+        nativeEvent: { locationX: 8, locationY: 8 },
+      });
+
+      await act(async () => {
+        capturedPanResponderConfig.onPanResponderMove({}, { moveX: 160, moveY: 200 });
+        capturedPanResponderConfig.onPanResponderRelease();
+      });
+
+      await waitFor(() =>
+        expect(mockMoveGameToBoardTarget).toHaveBeenCalledWith(
+          id,
+          expect.objectContaining(expectedSpan),
+          4
+        )
+      );
+    }
+  );
 
   it("ignores tap immediately after long press, then allows tap after drag ends", () => {
     mockUseGamesContext.mockReturnValue(

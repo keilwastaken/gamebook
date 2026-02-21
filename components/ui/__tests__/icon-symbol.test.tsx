@@ -1,7 +1,6 @@
 import React from "react";
 import { render, screen } from "@testing-library/react-native";
 
-import { IconSymbol as FallbackIconSymbol } from "../icon-symbol.tsx";
 import { IconSymbol as IOSIconSymbol } from "../icon-symbol.ios";
 
 jest.mock("@expo/vector-icons/MaterialIcons", () => {
@@ -34,6 +33,9 @@ jest.mock("expo-symbols", () => {
 
 describe("IconSymbol", () => {
   it("maps SF symbol names to Material icon names on non-iOS fallback", () => {
+    const { IconSymbol: FallbackIconSymbol } = jest.requireActual("../icon-symbol.tsx") as {
+      IconSymbol: React.ComponentType<Record<string, unknown>>;
+    };
     render(<FallbackIconSymbol name="house.fill" color="#abc" />);
     const icon = screen.getByTestId("material-icon");
     expect(icon.props.iconName).toBe("home");
